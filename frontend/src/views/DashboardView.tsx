@@ -162,6 +162,7 @@ export const DashboardView: React.FC<Props> = ({
             <span className="text-2xl font-semibold font-mono-num">{kpis.total_inks}</span>
             <span className="text-xs text-zinc-500 font-mono-num">
               {kpis.bottles_count} bottles · {kpis.samples_vial_count} samples
+              {kpis.cartridges_count > 0 ? ` · ${kpis.cartridges_count} cartridges` : ''}
             </span>
           </div>
           <p className="text-[11px] text-zinc-400 mt-1">

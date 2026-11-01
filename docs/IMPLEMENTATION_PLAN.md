@@ -155,9 +155,9 @@ erDiagram
    - **Currently Inked Command Table**: Sortable compact table with color dots, nib badges, days-inked aging indicators, sample preview, and 1-click `[+ Refill]` / `[✓ Clean]` modals (with backdate support).
    - **High-Contrast Charts**: Monthly Activity (Ink-ups / Refills / Cleanings), Most Used Pens, Most Used Inks, Color Family Collection vs. Usage Breakdown, Nib & Filling Mechanism distribution, and "Bench Warmers" (longest neglected pens & inks).
 2. **Pen Cabinet (`/pens`) & Pen Detail (`/pens/:id`)**:
-   - Filterable table + photo cards, hardware specs, Pen photo upload, standalone Markdown **Custom Notes**, complete Inked/Refilled/Cleaned timeline, and all writing samples written with that pen.
+   - Separate **Pen Company** combobox + **Pen Name / Color** filters, clickable sorting on every column (`Company`, `Pen Name`, `Color`, `Nib`, `Filling System`, `Current Status / Ink`, `Ink-Ups`, `Refills`, `Total Days`, `Last Cleaned`), photo cards, hardware specs, Pen photo upload, standalone Markdown **Custom Notes**, complete Inked/Refilled/Cleaned timeline, and all writing samples written with that pen.
 3. **Ink Library (`/inks`) & Ink Detail (`/inks/:id`)**:
-   - Filterable inventory table, interactive **Remaining Level** (`Full`, `75%`, `Half`, `Low`, `Empty`), prominent **`Mountain of Ink Review ↗`** button + 1-click search helper, standalone Markdown **Custom Notes**, usage history, and nib-annotated writing sample gallery.
+   - Separate **Ink Company** combobox + **Ink Name** filters, clickable sorting on every column (`Company`, `Ink Name`, `Color`, `Format`, `Size`, `Remaining Level`, `Fills`, `Days`, `Samples`, `Review Link`), 1-click inline & detail **Container Format** editing (`Bottle`, `Sample Vial`, `Cartridge`) + size/quantity editing, interactive **Remaining Level** (`Full`, `75%`, `Half`, `Low`, `Empty`), prominent **`Mountain of Ink Review ↗`** button + 1-click search helper, standalone Markdown **Custom Notes**, usage history, and nib-annotated writing sample gallery.
 4. **Scan Upload & Crop Studio (`/scans`)**:
    - Multi-page PDF uploader, AI Vision auto-detect + interactive drag/resize crop overlay, ink hex eyedropper, and demo PDF included out of the box.
 5. **Writing Samples Explorer (`/samples`)**:

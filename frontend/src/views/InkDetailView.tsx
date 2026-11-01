@@ -35,6 +35,25 @@ const LEVELS: Array<{ key: string; label: string }> = [
   { key: 'empty', label: 'Empty' },
 ];
 
+const FORMATS: Array<{ key: string; label: string }> = [
+  { key: 'bottle', label: 'Bottle' },
+  { key: 'sample_vial', label: 'Sample Vial' },
+  { key: 'cartridge', label: 'Cartridge' },
+];
+
+const COLOR_FAMILIES = [
+  'Blue',
+  'Teal',
+  'Green',
+  'Red',
+  'Purple',
+  'Brown',
+  'Orange',
+  'Black',
+  'Grey',
+  'Pink',
+];
+
 export const InkDetailView: React.FC<Props> = ({
   inkId,
   allPens,
@@ -58,7 +77,9 @@ export const InkDetailView: React.FC<Props> = ({
     name: '',
     color_family: '',
     hex_color: '',
+    format: 'bottle',
     volume_ml: 50,
+    quantity: 1,
     mountain_of_ink_url: '',
     properties_tags: '',
   });
@@ -73,7 +94,9 @@ export const InkDetailView: React.FC<Props> = ({
         name: res.ink.name,
         color_family: res.ink.color_family,
         hex_color: res.ink.hex_color,
+        format: res.ink.format,
         volume_ml: res.ink.volume_ml,
+        quantity: res.ink.quantity || 1,
         mountain_of_ink_url: res.ink.mountain_of_ink_url,
         properties_tags: res.ink.properties_tags,
       });
@@ -94,6 +117,21 @@ export const InkDetailView: React.FC<Props> = ({
 
   const handleLevelChange = async (lvl: string) => {
     await api.updateInk(ink.id, { remaining_level: lvl });
+    await loadDetail();
+    onGlobalRefresh();
+  };
+
+  const handleFormatChange = async (nextFormat: string) => {
+    if (nextFormat === ink.format) return;
+    const patch: Record<string, unknown> = { format: nextFormat };
+    if (nextFormat === 'sample_vial' && ink.volume_ml >= 15) {
+      patch.volume_ml = 4;
+    } else if (nextFormat === 'cartridge' && ink.volume_ml >= 15) {
+      patch.volume_ml = 1;
+    } else if (nextFormat === 'bottle' && ink.volume_ml <= 10) {
+      patch.volume_ml = 50;
+    }
+    await api.updateInk(ink.id, patch);
     await loadDetail();
     onGlobalRefresh();
   };
@@ -145,7 +183,7 @@ export const InkDetailView: React.FC<Props> = ({
             className="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-md border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800"
           >
             <Edit3 className="w-3.5 h-3.5" />
-            Edit Ink &amp; URL
+            Edit Ink, Format &amp; URL
           </button>
           {otherInks.length > 0 && (
             <button
@@ -178,45 +216,126 @@ export const InkDetailView: React.FC<Props> = ({
               {ink.hex_color.toUpperCase()} · {ink.color_family}
             </span>
             <span className="px-2.5 py-0.5 rounded text-xs font-mono-num bg-white/90 text-zinc-900 font-medium">
+              {ink.quantity > 1 ? `${ink.quantity} × ` : ''}
               {ink.format === 'sample_vial'
                 ? `${ink.volume_ml}ml Sample Vial`
                 : ink.format === 'bottle'
                   ? `${ink.volume_ml}ml Bottle`
-                  : 'Cartridge'}
+                  : `${ink.volume_ml}ml Cartridge`}
             </span>
           </div>
         </div>
 
         <div className="p-5 space-y-4">
           {editingMeta ? (
-            <form onSubmit={handleSaveMeta} className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
-              <input
-                value={metaForm.brand}
-                onChange={(e) => setMetaForm({ ...metaForm, brand: e.target.value })}
-                placeholder="Brand"
-                className="rounded border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-1.5"
-              />
-              <input
-                value={metaForm.name}
-                onChange={(e) => setMetaForm({ ...metaForm, name: e.target.value })}
-                placeholder="Ink Name"
-                className="rounded border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-1.5"
-              />
-              <div className="flex items-center gap-2">
+            <form onSubmit={handleSaveMeta} className="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
+              <div>
+                <label className="block text-[11px] font-medium text-zinc-500 mb-1">
+                  Ink Company / Brand
+                </label>
                 <input
-                  type="color"
-                  value={metaForm.hex_color}
-                  onChange={(e) => setMetaForm({ ...metaForm, hex_color: e.target.value })}
-                  className="h-8 w-10 rounded"
-                />
-                <input
-                  value={metaForm.color_family}
-                  onChange={(e) => setMetaForm({ ...metaForm, color_family: e.target.value })}
-                  placeholder="Color Family"
-                  className="flex-1 rounded border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-1.5"
+                  required
+                  value={metaForm.brand}
+                  onChange={(e) => setMetaForm({ ...metaForm, brand: e.target.value })}
+                  placeholder="Brand"
+                  className="w-full rounded border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-1.5"
                 />
               </div>
+              <div>
+                <label className="block text-[11px] font-medium text-zinc-500 mb-1">
+                  Ink Name
+                </label>
+                <input
+                  required
+                  value={metaForm.name}
+                  onChange={(e) => setMetaForm({ ...metaForm, name: e.target.value })}
+                  placeholder="Ink Name"
+                  className="w-full rounded border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-1.5"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium text-zinc-500 mb-1">
+                  Color Family &amp; Swatch
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="color"
+                    value={metaForm.hex_color}
+                    onChange={(e) => setMetaForm({ ...metaForm, hex_color: e.target.value })}
+                    className="h-8 w-9 rounded cursor-pointer border border-zinc-300 dark:border-zinc-700"
+                  />
+                  <select
+                    value={metaForm.color_family}
+                    onChange={(e) => setMetaForm({ ...metaForm, color_family: e.target.value })}
+                    className="flex-1 rounded border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-2.5 py-1.5"
+                  >
+                    {COLOR_FAMILIES.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              <div>
+                <label className="block text-[11px] font-medium text-zinc-500 mb-1">
+                  Container Format
+                </label>
+                <select
+                  value={metaForm.format}
+                  onChange={(e) => {
+                    const nextFmt = e.target.value;
+                    let nextVol = metaForm.volume_ml;
+                    if (nextFmt === 'sample_vial' && nextVol >= 15) nextVol = 4;
+                    else if (nextFmt === 'cartridge' && nextVol >= 15) nextVol = 1;
+                    else if (nextFmt === 'bottle' && nextVol <= 10) nextVol = 50;
+                    setMetaForm({ ...metaForm, format: nextFmt, volume_ml: nextVol });
+                  }}
+                  className="w-full rounded border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-1.5"
+                >
+                  <option value="bottle">Bottle</option>
+                  <option value="sample_vial">Sample Vial</option>
+                  <option value="cartridge">Cartridge Pack</option>
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] font-medium text-zinc-500 mb-1">
+                    Size (ml)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.5"
+                    min="0.5"
+                    value={metaForm.volume_ml}
+                    onChange={(e) =>
+                      setMetaForm({ ...metaForm, volume_ml: Number(e.target.value) })
+                    }
+                    className="w-full rounded border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-2.5 py-1.5 font-mono-num"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[11px] font-medium text-zinc-500 mb-1">
+                    Qty
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={metaForm.quantity}
+                    onChange={(e) =>
+                      setMetaForm({
+                        ...metaForm,
+                        quantity: Math.max(1, Number(e.target.value)),
+                      })
+                    }
+                    className="w-full rounded border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-2.5 py-1.5 font-mono-num"
+                  />
+                </div>
+              </div>
               <div className="md:col-span-2">
+                <label className="block text-[11px] font-medium text-zinc-500 mb-1">
+                  Mountain of Ink URL
+                </label>
                 <input
                   value={metaForm.mountain_of_ink_url}
                   onChange={(e) =>
@@ -226,19 +345,26 @@ export const InkDetailView: React.FC<Props> = ({
                   className="w-full rounded border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-1.5"
                 />
               </div>
-              <div className="flex items-center gap-2">
-                <input
-                  value={metaForm.properties_tags}
-                  onChange={(e) => setMetaForm({ ...metaForm, properties_tags: e.target.value })}
-                  placeholder="Tags (Sheen, Shading...)"
-                  className="flex-1 rounded border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-1.5"
-                />
-                <button
-                  type="submit"
-                  className="px-3.5 py-1.5 rounded bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 font-medium"
-                >
-                  Save
-                </button>
+              <div>
+                <label className="block text-[11px] font-medium text-zinc-500 mb-1">
+                  Tags
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    value={metaForm.properties_tags}
+                    onChange={(e) =>
+                      setMetaForm({ ...metaForm, properties_tags: e.target.value })
+                    }
+                    placeholder="Sheen, Shading..."
+                    className="flex-1 rounded border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-1.5"
+                  />
+                  <button
+                    type="submit"
+                    className="px-3.5 py-1.5 rounded bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 font-medium"
+                  >
+                    Save
+                  </button>
+                </div>
               </div>
             </form>
           ) : (
@@ -300,23 +426,44 @@ export const InkDetailView: React.FC<Props> = ({
             </div>
           )}
 
-          {/* Interactive 1-Click Remaining Level Bar */}
-          <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-zinc-100 dark:border-zinc-800 text-xs">
-            <span className="text-zinc-500 font-medium">Inventory Remaining Level:</span>
-            <div className="flex items-center gap-1 rounded-lg bg-zinc-100 dark:bg-zinc-800 p-1">
-              {LEVELS.map((lvl) => (
-                <button
-                  key={lvl.key}
-                  onClick={() => handleLevelChange(lvl.key)}
-                  className={`px-2.5 py-1 rounded-md font-mono-num font-medium transition ${
-                    ink.remaining_level === lvl.key
-                      ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-2xs'
-                      : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
-                  }`}
-                >
-                  {lvl.label}
-                </button>
-              ))}
+          {/* Interactive 1-Click Container Format & Remaining Level Bars */}
+          <div className="flex flex-wrap items-center justify-between gap-4 pt-3 border-t border-zinc-100 dark:border-zinc-800 text-xs">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <span className="text-zinc-500 font-medium">Container Format:</span>
+              <div className="flex items-center gap-1 rounded-lg bg-zinc-100 dark:bg-zinc-800 p-1">
+                {FORMATS.map((fmt) => (
+                  <button
+                    key={fmt.key}
+                    onClick={() => void handleFormatChange(fmt.key)}
+                    className={`px-2.5 py-1 rounded-md font-medium transition ${
+                      ink.format === fmt.key
+                        ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-2xs'
+                        : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
+                    }`}
+                  >
+                    {fmt.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2.5">
+              <span className="text-zinc-500 font-medium">Remaining Level:</span>
+              <div className="flex items-center gap-1 rounded-lg bg-zinc-100 dark:bg-zinc-800 p-1">
+                {LEVELS.map((lvl) => (
+                  <button
+                    key={lvl.key}
+                    onClick={() => void handleLevelChange(lvl.key)}
+                    className={`px-2.5 py-1 rounded-md font-mono-num font-medium transition ${
+                      ink.remaining_level === lvl.key
+                        ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-2xs'
+                        : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
+                    }`}
+                  >
+                    {lvl.label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>

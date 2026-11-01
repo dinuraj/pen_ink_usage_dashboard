@@ -24,6 +24,7 @@ class Pen(Base):
     nib_material: Mapped[str] = mapped_column(String(60), default="Steel", nullable=False)
     filling_mechanism: Mapped[str] = mapped_column(String(60), default="Converter", nullable=False)
     status: Mapped[str] = mapped_column(String(30), default="active", nullable=False)  # active, retired, maintenance
+    tags: Mapped[str] = mapped_column(String(250), default="", nullable=False)  # comma-separated: Everyday Use, Collectible, Vintage
     primary_photo_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
     custom_notes: Mapped[str] = mapped_column(Text, default="", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

@@ -19,6 +19,7 @@ class PenBrief(BaseModel):
     nib_size: str
     nib_material: str
     filling_mechanism: str
+    tags: list[str] = []
     primary_photo_url: str | None = None
 
 
@@ -56,6 +57,7 @@ class PenCreate(BaseModel):
     nib_material: str = "Steel"
     filling_mechanism: str = "Converter"
     status: str = "active"
+    tags: list[str] | str = []
     custom_notes: str = ""
 
 
@@ -67,6 +69,7 @@ class PenUpdate(BaseModel):
     nib_material: str | None = None
     filling_mechanism: str | None = None
     status: str | None = None
+    tags: list[str] | str | None = None
     custom_notes: str | None = None
 
 
@@ -86,6 +89,7 @@ class PenOut(BaseModel):
     nib_material: str
     filling_mechanism: str
     status: str
+    tags: list[str] = []
     primary_photo_url: str | None = None
     custom_notes: str
     is_currently_inked: bool = False

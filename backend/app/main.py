@@ -9,15 +9,26 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from sqlalchemy import text
+
 from .config import FRONTEND_DIST_DIR, UPLOADS_DIR
 from .database import Base, SessionLocal, engine
 from .models import Pen
 from .routers import analytics, inks, pens, samples, scans, sessions, settings
 
 
+def _ensure_sqlite_schema_migrations() -> None:
+    """Apply lightweight additive column migrations for existing SQLite databases."""
+    with engine.begin() as conn:
+        cols = [row[1] for row in conn.execute(text("PRAGMA table_info(pens)")).fetchall()]
+        if cols and "tags" not in cols:
+            conn.execute(text("ALTER TABLE pens ADD COLUMN tags VARCHAR(250) NOT NULL DEFAULT ''"))
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):  # noqa: ANN001, ARG001
     Base.metadata.create_all(bind=engine)
+    _ensure_sqlite_schema_migrations()
     if os.getenv("AUTO_SEED_DEMO", "false").lower() == "true":
         db = SessionLocal()
         try:

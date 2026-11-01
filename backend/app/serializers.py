@@ -26,6 +26,45 @@ from .services.lifecycle import session_days_active
 from .storage import storage
 
 
+CANONICAL_PEN_TAGS: dict[str, str] = {
+    "everyday use": "Everyday Use",
+    "everyday-use": "Everyday Use",
+    "everyday": "Everyday Use",
+    "collectible": "Collectible",
+    "vintage": "Vintage",
+}
+
+TAG_SORT_ORDER: dict[str, int] = {
+    "Everyday Use": 1,
+    "Collectible": 2,
+    "Vintage": 3,
+}
+
+
+def parse_pen_tags(raw: list[str] | str | None) -> list[str]:
+    """Normalize pen tags into deduplicated canonical display strings."""
+    if not raw:
+        return []
+    items = raw.split(",") if isinstance(raw, str) else list(raw)
+    seen: set[str] = set()
+    normalized: list[str] = []
+    for item in items:
+        clean = item.strip()
+        if not clean:
+            continue
+        canon = CANONICAL_PEN_TAGS.get(clean.lower(), clean)
+        key = canon.lower()
+        if key not in seen:
+            seen.add(key)
+            normalized.append(canon)
+    normalized.sort(key=lambda t: (TAG_SORT_ORDER.get(t, 99), t.lower()))
+    return normalized
+
+
+def join_pen_tags(raw: list[str] | str | None) -> str:
+    return ",".join(parse_pen_tags(raw))
+
+
 def serialize_pen_brief(pen: Pen) -> PenBrief:
     return PenBrief(
         id=pen.id,
@@ -35,6 +74,7 @@ def serialize_pen_brief(pen: Pen) -> PenBrief:
         nib_size=pen.nib_size,
         nib_material=pen.nib_material,
         filling_mechanism=pen.filling_mechanism,
+        tags=parse_pen_tags(pen.tags),
         primary_photo_url=storage.get_public_url(pen.primary_photo_key),
     )
 
@@ -142,6 +182,7 @@ def serialize_pen(pen: Pen, today: date | None = None) -> PenOut:
         nib_material=pen.nib_material,
         filling_mechanism=pen.filling_mechanism,
         status=pen.status,
+        tags=parse_pen_tags(pen.tags),
         primary_photo_url=storage.get_public_url(pen.primary_photo_key),
         custom_notes=pen.custom_notes,
         is_currently_inked=active_sess is not None,

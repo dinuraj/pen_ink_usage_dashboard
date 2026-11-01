@@ -7,11 +7,20 @@ import {
   ArrowUp,
   ArrowDown,
   RotateCcw,
+  Check,
   X,
 } from 'lucide-react';
 import { api } from '../api';
 import type { PenOut } from '../types';
-import { CompanyFilterCombobox, SortableTh } from '../components/FilterSortControls';
+import {
+  CompanyFilterCombobox,
+  MultiTagFilterDropdown,
+  PEN_TAG_OPTIONS,
+  PenTagBadge,
+  PenTagsInlineEditor,
+  SortableTh,
+  UNTAGGED_FILTER_VALUE,
+} from '../components/FilterSortControls';
 
 interface Props {
   pens: PenOut[];
@@ -23,6 +32,7 @@ type PenSortKey =
   | 'brand'
   | 'model'
   | 'color_variant'
+  | 'tags'
   | 'nib_size'
   | 'nib_material'
   | 'filling_mechanism'
@@ -37,6 +47,7 @@ const PEN_SORT_OPTIONS: Array<{ key: PenSortKey; label: string; defaultDir: 'asc
   { key: 'brand', label: 'Pen Company', defaultDir: 'asc' },
   { key: 'model', label: 'Pen Name / Model', defaultDir: 'asc' },
   { key: 'color_variant', label: 'Color / Finish', defaultDir: 'asc' },
+  { key: 'tags', label: 'Tags', defaultDir: 'asc' },
   { key: 'nib_size', label: 'Nib Size', defaultDir: 'asc' },
   { key: 'nib_material', label: 'Nib Material', defaultDir: 'asc' },
   { key: 'filling_mechanism', label: 'Filling System', defaultDir: 'asc' },
@@ -81,10 +92,12 @@ const NIB_MATERIALS = ['Steel', '14k Gold', '18k Gold', '21k Gold', 'Titanium', 
 const MECHANISMS = ['Converter', 'Piston', 'Vacuum', 'Cartridge', 'Eyedropper', 'Lever', 'Aerometric'];
 
 export const PensView: React.FC<Props> = ({ pens, onRefresh, onSelectPen }) => {
-  // Separate Pen Company & Pen Name filters + facets
+  // Separate Pen Company & Pen Name filters + multi-select Tag filter + facets
   const [companyFilter, setCompanyFilter] = useState('');
   const [companyExact, setCompanyExact] = useState(false);
   const [nameQuery, setNameQuery] = useState('');
+  const [tagFilters, setTagFilters] = useState<string[]>([]);
+  const [tagMatchMode, setTagMatchMode] = useState<'any' | 'all'>('any');
   const [statusFilter, setStatusFilter] = useState<'all' | 'inked' | 'clean'>('all');
   const [nibFilter, setNibFilter] = useState('all');
   const [mechanismFilter, setMechanismFilter] = useState('all');
@@ -103,6 +116,7 @@ export const PensView: React.FC<Props> = ({ pens, onRefresh, onSelectPen }) => {
   const [nibSize, setNibSize] = useState('M');
   const [nibMaterial, setNibMaterial] = useState('Steel');
   const [fillingMech, setFillingMech] = useState('Converter');
+  const [newPenTags, setNewPenTags] = useState<string[]>([]);
   const [customNotes, setCustomNotes] = useState('');
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
@@ -115,6 +129,22 @@ export const PensView: React.FC<Props> = ({ pens, onRefresh, onSelectPen }) => {
     return Array.from(counts.entries())
       .map(([name, count]) => ({ name, count }))
       .sort((a, b) => a.name.localeCompare(b.name));
+  }, [pens]);
+
+  const { tagCounts, untaggedCount } = useMemo(() => {
+    const counts: Record<string, number> = {};
+    let untagged = 0;
+    for (const p of pens) {
+      const pTags = p.tags ?? [];
+      if (pTags.length === 0) {
+        untagged += 1;
+      } else {
+        for (const t of pTags) {
+          counts[t] = (counts[t] ?? 0) + 1;
+        }
+      }
+    }
+    return { tagCounts: counts, untaggedCount: untagged };
   }, [pens]);
 
   const uniqueNibs = useMemo(
@@ -141,9 +171,15 @@ export const PensView: React.FC<Props> = ({ pens, onRefresh, onSelectPen }) => {
     }
   };
 
+  const handleQuickTagsChange = async (penId: number, nextTags: string[]) => {
+    await api.updatePen(penId, { tags: nextTags });
+    onRefresh();
+  };
+
   const hasActiveFilters =
     Boolean(companyFilter.trim()) ||
     Boolean(nameQuery.trim()) ||
+    tagFilters.length > 0 ||
     statusFilter !== 'all' ||
     nibFilter !== 'all' ||
     mechanismFilter !== 'all';
@@ -152,6 +188,7 @@ export const PensView: React.FC<Props> = ({ pens, onRefresh, onSelectPen }) => {
     setCompanyFilter('');
     setCompanyExact(false);
     setNameQuery('');
+    setTagFilters([]);
     setStatusFilter('all');
     setNibFilter('all');
     setMechanismFilter('all');
@@ -175,6 +212,23 @@ export const PensView: React.FC<Props> = ({ pens, onRefresh, onSelectPen }) => {
           : '';
         const hay = `${p.model} ${p.color_variant} ${p.nib_material} ${activeInkText}`.toLowerCase();
         if (!hay.includes(nameNeedle)) return false;
+      }
+      if (tagFilters.length > 0) {
+        const pTags = p.tags ?? [];
+        const includeUntagged = tagFilters.includes(UNTAGGED_FILTER_VALUE);
+        const realTags = tagFilters.filter((t) => t !== UNTAGGED_FILTER_VALUE);
+
+        if (includeUntagged && realTags.length === 0) {
+          if (pTags.length !== 0) return false;
+        } else if (includeUntagged && realTags.length > 0) {
+          const matchesUntagged = pTags.length === 0;
+          const matchesReal = realTags.some((t) => pTags.includes(t));
+          if (!matchesUntagged && !matchesReal) return false;
+        } else if (tagMatchMode === 'all') {
+          if (!realTags.every((t) => pTags.includes(t))) return false;
+        } else {
+          if (!realTags.some((t) => pTags.includes(t))) return false;
+        }
       }
       if (statusFilter === 'inked' && !p.is_currently_inked) return false;
       if (statusFilter === 'clean' && p.is_currently_inked) return false;
@@ -201,6 +255,14 @@ export const PensView: React.FC<Props> = ({ pens, onRefresh, onSelectPen }) => {
           const bEmpty = !b.color_variant.trim();
           if (aEmpty !== bEmpty) return aEmpty ? 1 : -1;
           return mult * a.color_variant.localeCompare(b.color_variant) || tieBreak();
+        }
+        case 'tags': {
+          const aStr = (a.tags ?? []).join(', ');
+          const bStr = (b.tags ?? []).join(', ');
+          const aEmpty = !aStr;
+          const bEmpty = !bStr;
+          if (aEmpty !== bEmpty) return aEmpty ? 1 : -1;
+          return mult * aStr.localeCompare(bStr) || tieBreak();
         }
         case 'nib_size': {
           const diff = nibRankValue(a.nib_size) - nibRankValue(b.nib_size);
@@ -254,6 +316,8 @@ export const PensView: React.FC<Props> = ({ pens, onRefresh, onSelectPen }) => {
     companyFilter,
     companyExact,
     nameQuery,
+    tagFilters,
+    tagMatchMode,
     statusFilter,
     nibFilter,
     mechanismFilter,
@@ -272,6 +336,7 @@ export const PensView: React.FC<Props> = ({ pens, onRefresh, onSelectPen }) => {
         nib_size: nibSize,
         nib_material: nibMaterial,
         filling_mechanism: fillingMech,
+        tags: newPenTags,
         custom_notes: customNotes,
       });
       if (photoFile) {
@@ -280,6 +345,7 @@ export const PensView: React.FC<Props> = ({ pens, onRefresh, onSelectPen }) => {
       setBrand('');
       setModel('');
       setColorVariant('');
+      setNewPenTags([]);
       setCustomNotes('');
       setPhotoFile(null);
       setShowAddModal(false);
@@ -300,8 +366,8 @@ export const PensView: React.FC<Props> = ({ pens, onRefresh, onSelectPen }) => {
             {hasActiveFilters
               ? `Showing ${sortedAndFiltered.length} of ${pens.length} pens`
               : `${pens.length} pens cataloged across ${companyOptions.length} companies`}{' '}
-            · {pens.filter((p) => p.is_currently_inked).length} currently inked · Click any column
-            header to sort
+            · {pens.filter((p) => p.is_currently_inked).length} currently inked · Click{' '}
+            <strong>+ Tag</strong> on any pen to assign tags or click column headers to sort
           </p>
         </div>
         <button
@@ -313,7 +379,7 @@ export const PensView: React.FC<Props> = ({ pens, onRefresh, onSelectPen }) => {
         </button>
       </div>
 
-      {/* Separate Company & Name Filters + Sort Toolbar */}
+      {/* Separate Company, Name & Multi-Select Tag Filters + Sort Toolbar */}
       <div className="flex flex-wrap items-center justify-between gap-2.5 rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-3">
         <div className="flex flex-wrap items-center gap-2 flex-1">
           {/* Filter 1: Pen Company */}
@@ -330,7 +396,7 @@ export const PensView: React.FC<Props> = ({ pens, onRefresh, onSelectPen }) => {
           />
 
           {/* Filter 2: Pen Name / Color */}
-          <div className="relative min-w-[190px] flex-1 max-w-[240px]">
+          <div className="relative min-w-[180px] flex-1 max-w-[225px]">
             <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
@@ -354,6 +420,16 @@ export const PensView: React.FC<Props> = ({ pens, onRefresh, onSelectPen }) => {
               </button>
             )}
           </div>
+
+          {/* Filter 3: Multi-Select Tags (Everyday Use, Collectible, Vintage) */}
+          <MultiTagFilterDropdown
+            selected={tagFilters}
+            matchMode={tagMatchMode}
+            onChangeSelected={setTagFilters}
+            onChangeMatchMode={setTagMatchMode}
+            tagCounts={tagCounts}
+            untaggedCount={untaggedCount}
+          />
 
           <div className="flex items-center rounded-lg bg-zinc-100 dark:bg-zinc-800 p-0.5 text-xs">
             {(
@@ -501,6 +577,13 @@ export const PensView: React.FC<Props> = ({ pens, onRefresh, onSelectPen }) => {
                     onSort={handleSort}
                   />
                   <SortableTh
+                    label="Tags"
+                    sortKey="tags"
+                    activeKey={sortKey}
+                    direction={sortDir}
+                    onSort={handleSort}
+                  />
+                  <SortableTh
                     label="Nib"
                     sortKey="nib_size"
                     activeKey={sortKey}
@@ -572,6 +655,12 @@ export const PensView: React.FC<Props> = ({ pens, onRefresh, onSelectPen }) => {
                     <td className="py-2.5 px-3 text-zinc-500">
                       {p.color_variant || <span className="text-zinc-300 dark:text-zinc-700">—</span>}
                     </td>
+                    <td className="py-2.5 px-3">
+                      <PenTagsInlineEditor
+                        tags={p.tags ?? []}
+                        onChange={(next) => handleQuickTagsChange(p.id, next)}
+                      />
+                    </td>
                     <td className="py-2.5 px-3 whitespace-nowrap">
                       <span className="px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 font-mono-num font-medium">
                         {p.nib_size}
@@ -588,7 +677,7 @@ export const PensView: React.FC<Props> = ({ pens, onRefresh, onSelectPen }) => {
                             className="w-2.5 h-2.5 rounded-full shrink-0"
                             style={{ backgroundColor: p.active_pairing.ink_hex }}
                           />
-                          <span className="truncate max-w-[180px]">
+                          <span className="truncate max-w-[170px]">
                             {p.active_pairing.ink_brand} {p.active_pairing.ink_name}
                           </span>
                           <span className="text-[10px] font-mono-num opacity-75">
@@ -617,7 +706,7 @@ export const PensView: React.FC<Props> = ({ pens, onRefresh, onSelectPen }) => {
                 ))}
                 {sortedAndFiltered.length === 0 && (
                   <tr>
-                    <td colSpan={10} className="py-10 text-center text-zinc-400">
+                    <td colSpan={11} className="py-10 text-center text-zinc-400">
                       No fountain pens match the selected filters.
                     </td>
                   </tr>
@@ -659,6 +748,13 @@ export const PensView: React.FC<Props> = ({ pens, onRefresh, onSelectPen }) => {
                   <span className="px-2 py-0.5 text-xs font-mono-num font-semibold rounded bg-zinc-100 dark:bg-zinc-800">
                     {p.nib_size}
                   </span>
+                </div>
+
+                <div>
+                  <PenTagsInlineEditor
+                    tags={p.tags ?? []}
+                    onChange={(next) => handleQuickTagsChange(p.id, next)}
+                  />
                 </div>
 
                 <div className="flex items-center justify-between pt-2 border-t border-zinc-100 dark:border-zinc-800 text-xs">
@@ -740,6 +836,43 @@ export const PensView: React.FC<Props> = ({ pens, onRefresh, onSelectPen }) => {
                   placeholder="e.g., Amber, Charcoal Matte, Chartres Blue"
                   className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-3 py-1.5 text-sm"
                 />
+              </div>
+              <div className="col-span-2">
+                <label className="block font-medium text-zinc-600 dark:text-zinc-400 mb-1.5">
+                  Pen Tags (Multi-Select)
+                </label>
+                <div className="flex flex-wrap items-center gap-2">
+                  {PEN_TAG_OPTIONS.map((tag) => {
+                    const selected = newPenTags.includes(tag);
+                    return (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() =>
+                          setNewPenTags((prev) =>
+                            prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag],
+                          )
+                        }
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition ${
+                          selected
+                            ? 'border-indigo-500 bg-indigo-50/70 dark:bg-indigo-950/40 ring-1 ring-indigo-500/30'
+                            : 'border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/60'
+                        }`}
+                      >
+                        <span
+                          className={`w-3.5 h-3.5 rounded flex items-center justify-center border ${
+                            selected
+                              ? 'bg-indigo-600 border-indigo-600 text-white'
+                              : 'border-zinc-300 dark:border-zinc-700'
+                          }`}
+                        >
+                          {selected && <Check className="w-2.5 h-2.5" />}
+                        </span>
+                        <PenTagBadge tag={tag} />
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
               <div>
                 <label className="block font-medium text-zinc-600 dark:text-zinc-400 mb-1">

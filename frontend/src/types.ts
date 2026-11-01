@@ -18,6 +18,7 @@ export interface PenOut {
   nib_material: string;
   filling_mechanism: string;
   status: string;
+  tags: string[];
   primary_photo_url: string | null;
   custom_notes: string;
   is_currently_inked: boolean;
@@ -39,6 +40,7 @@ export interface PenBrief {
   nib_size: string;
   nib_material: string;
   filling_mechanism: string;
+  tags?: string[];
   primary_photo_url: string | null;
 }
 

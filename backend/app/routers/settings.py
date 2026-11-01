@@ -108,6 +108,7 @@ def export_backup_zip(db: Session = Depends(get_db)) -> StreamingResponse:
                 "nib_material": p.nib_material,
                 "filling_mechanism": p.filling_mechanism,
                 "status": p.status,
+                "tags": p.tags,
                 "custom_notes": p.custom_notes,
             }
             for p in db.query(Pen).all()

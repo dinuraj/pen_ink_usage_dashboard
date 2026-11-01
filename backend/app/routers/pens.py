@@ -24,6 +24,8 @@ from ..schemas import (
     SplitPenSessionsRequest,
 )
 from ..serializers import (
+    join_pen_tags,
+    parse_pen_tags,
     serialize_pen,
     serialize_pen_photos,
     serialize_session,
@@ -106,6 +108,7 @@ def _merge_one_pen_into_target(db: Session, source: Pen, target: Pen) -> PenMerg
         "nib_material": source.nib_material,
         "filling_mechanism": source.filling_mechanism,
         "status": source.status,
+        "tags": source.tags,
         "primary_photo_key": source.primary_photo_key,
         "custom_notes": source.custom_notes,
     }
@@ -137,6 +140,10 @@ def _merge_one_pen_into_target(db: Session, source: Pen, target: Pen) -> PenMerg
 
     if source.primary_photo_key and not target.primary_photo_key:
         target.primary_photo_key = source.primary_photo_key
+
+    merged_tags = parse_pen_tags(target.tags) + parse_pen_tags(source.tags)
+    if merged_tags:
+        target.tags = join_pen_tags(merged_tags)
 
     src_notes = (source.custom_notes or "").strip()
     if src_notes and src_notes not in (target.custom_notes or ""):
@@ -184,7 +191,9 @@ def list_pens(db: Session = Depends(get_db)) -> list[PenOut]:
 
 @router.post("", response_model=PenOut)
 def create_pen(payload: PenCreate, db: Session = Depends(get_db)) -> PenOut:
-    pen = Pen(**payload.model_dump())
+    data = payload.model_dump()
+    data["tags"] = join_pen_tags(data.get("tags"))
+    pen = Pen(**data)
     db.add(pen)
     db.commit()
     return serialize_pen(_load_pen_summary(db, pen.id))
@@ -207,7 +216,7 @@ def merge_pens_bulk(
     if payload.updated_target is not None:
         for field, val in payload.updated_target.model_dump(exclude_unset=True).items():
             if val is not None:
-                setattr(target, field, val)
+                setattr(target, field, join_pen_tags(val) if field == "tags" else val)
 
     for sid in unique_sources:
         source = db.query(Pen).filter(Pen.id == sid).first()
@@ -241,6 +250,7 @@ def undo_pen_merge(merge_id: int, db: Session = Depends(get_db)) -> dict[str, An
         nib_material=snap.get("nib_material", "Steel"),
         filling_mechanism=snap.get("filling_mechanism", "Converter"),
         status=snap.get("status", "active"),
+        tags=snap.get("tags", ""),
         primary_photo_key=snap.get("primary_photo_key"),
         custom_notes=snap.get("custom_notes", ""),
     )
@@ -343,7 +353,7 @@ def get_pen_detail(pen_id: int, db: Session = Depends(get_db)) -> dict[str, Any]
 def update_pen(pen_id: int, payload: PenUpdate, db: Session = Depends(get_db)) -> PenOut:
     pen = _load_pen_summary(db, pen_id)
     for field, val in payload.model_dump(exclude_unset=True).items():
-        setattr(pen, field, val)
+        setattr(pen, field, join_pen_tags(val) if field == "tags" else val)
     db.commit()
     db.expire_all()
     return serialize_pen(_load_pen_summary(db, pen_id))
@@ -385,7 +395,9 @@ def split_pen_sessions(
         raise HTTPException(status_code=400, detail="Select at least one fill session or sample to split")
 
     if payload.new_pen is not None:
-        dest = Pen(**payload.new_pen.model_dump())
+        new_data = payload.new_pen.model_dump()
+        new_data["tags"] = join_pen_tags(new_data.get("tags"))
+        dest = Pen(**new_data)
         db.add(dest)
         db.flush()
     elif payload.target_pen_id is not None:

@@ -14,15 +14,22 @@ from sqlalchemy import text
 from .config import FRONTEND_DIST_DIR, UPLOADS_DIR
 from .database import Base, SessionLocal, engine
 from .models import Pen
-from .routers import analytics, inks, pens, samples, scans, sessions, settings
+from .routers import analytics, inks, notebooks, pens, samples, scans, sessions, settings
 
 
 def _ensure_sqlite_schema_migrations() -> None:
     """Apply lightweight additive column migrations for existing SQLite databases."""
     with engine.begin() as conn:
-        cols = [row[1] for row in conn.execute(text("PRAGMA table_info(pens)")).fetchall()]
-        if cols and "tags" not in cols:
-            conn.execute(text("ALTER TABLE pens ADD COLUMN tags VARCHAR(250) NOT NULL DEFAULT ''"))
+        pen_cols = [row[1] for row in conn.execute(text("PRAGMA table_info(pens)")).fetchall()]
+        if pen_cols:
+            if "tags" not in pen_cols:
+                conn.execute(text("ALTER TABLE pens ADD COLUMN tags VARCHAR(250) NOT NULL DEFAULT ''"))
+            if "rating" not in pen_cols:
+                conn.execute(text("ALTER TABLE pens ADD COLUMN rating INTEGER"))
+
+        ink_cols = [row[1] for row in conn.execute(text("PRAGMA table_info(inks)")).fetchall()]
+        if ink_cols and "rating" not in ink_cols:
+            conn.execute(text("ALTER TABLE inks ADD COLUMN rating INTEGER"))
 
 
 @asynccontextmanager
@@ -59,6 +66,7 @@ app.add_middleware(
 app.include_router(analytics.router)
 app.include_router(pens.router)
 app.include_router(inks.router)
+app.include_router(notebooks.router)
 app.include_router(sessions.router)
 app.include_router(scans.router)
 app.include_router(samples.router)

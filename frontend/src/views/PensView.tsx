@@ -14,11 +14,15 @@ import { api } from '../api';
 import type { PenOut } from '../types';
 import {
   CompanyFilterCombobox,
+  matchesRatingFilter,
   MultiTagFilterDropdown,
   PEN_TAG_OPTIONS,
   PenTagBadge,
   PenTagsInlineEditor,
+  RatingFilterSelect,
+  type RatingFilterValue,
   SortableTh,
+  StarRating,
   UNTAGGED_FILTER_VALUE,
 } from '../components/FilterSortControls';
 
@@ -33,6 +37,7 @@ type PenSortKey =
   | 'model'
   | 'color_variant'
   | 'tags'
+  | 'rating'
   | 'nib_size'
   | 'nib_material'
   | 'filling_mechanism'
@@ -48,6 +53,7 @@ const PEN_SORT_OPTIONS: Array<{ key: PenSortKey; label: string; defaultDir: 'asc
   { key: 'model', label: 'Pen Name / Model', defaultDir: 'asc' },
   { key: 'color_variant', label: 'Color / Finish', defaultDir: 'asc' },
   { key: 'tags', label: 'Tags', defaultDir: 'asc' },
+  { key: 'rating', label: 'Rating (★)', defaultDir: 'desc' },
   { key: 'nib_size', label: 'Nib Size', defaultDir: 'asc' },
   { key: 'nib_material', label: 'Nib Material', defaultDir: 'asc' },
   { key: 'filling_mechanism', label: 'Filling System', defaultDir: 'asc' },
@@ -98,6 +104,7 @@ export const PensView: React.FC<Props> = ({ pens, onRefresh, onSelectPen }) => {
   const [nameQuery, setNameQuery] = useState('');
   const [tagFilters, setTagFilters] = useState<string[]>([]);
   const [tagMatchMode, setTagMatchMode] = useState<'any' | 'all'>('any');
+  const [ratingFilter, setRatingFilter] = useState<RatingFilterValue>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'inked' | 'clean'>('all');
   const [nibFilter, setNibFilter] = useState('all');
   const [mechanismFilter, setMechanismFilter] = useState('all');
@@ -117,6 +124,7 @@ export const PensView: React.FC<Props> = ({ pens, onRefresh, onSelectPen }) => {
   const [nibMaterial, setNibMaterial] = useState('Steel');
   const [fillingMech, setFillingMech] = useState('Converter');
   const [newPenTags, setNewPenTags] = useState<string[]>([]);
+  const [newPenRating, setNewPenRating] = useState<number | null>(null);
   const [customNotes, setCustomNotes] = useState('');
   const [photoFile, setPhotoFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
@@ -176,10 +184,16 @@ export const PensView: React.FC<Props> = ({ pens, onRefresh, onSelectPen }) => {
     onRefresh();
   };
 
+  const handleQuickRatingChange = async (penId: number, nextRating: number | null) => {
+    await api.updatePen(penId, { rating: nextRating });
+    onRefresh();
+  };
+
   const hasActiveFilters =
     Boolean(companyFilter.trim()) ||
     Boolean(nameQuery.trim()) ||
     tagFilters.length > 0 ||
+    ratingFilter !== 'all' ||
     statusFilter !== 'all' ||
     nibFilter !== 'all' ||
     mechanismFilter !== 'all';
@@ -189,6 +203,7 @@ export const PensView: React.FC<Props> = ({ pens, onRefresh, onSelectPen }) => {
     setCompanyExact(false);
     setNameQuery('');
     setTagFilters([]);
+    setRatingFilter('all');
     setStatusFilter('all');
     setNibFilter('all');
     setMechanismFilter('all');
@@ -230,6 +245,7 @@ export const PensView: React.FC<Props> = ({ pens, onRefresh, onSelectPen }) => {
           if (!realTags.some((t) => pTags.includes(t))) return false;
         }
       }
+      if (!matchesRatingFilter(p.rating, ratingFilter)) return false;
       if (statusFilter === 'inked' && !p.is_currently_inked) return false;
       if (statusFilter === 'clean' && p.is_currently_inked) return false;
       if (nibFilter !== 'all' && p.nib_size !== nibFilter) return false;
@@ -263,6 +279,12 @@ export const PensView: React.FC<Props> = ({ pens, onRefresh, onSelectPen }) => {
           const bEmpty = !bStr;
           if (aEmpty !== bEmpty) return aEmpty ? 1 : -1;
           return mult * aStr.localeCompare(bStr) || tieBreak();
+        }
+        case 'rating': {
+          const aNull = !a.rating;
+          const bNull = !b.rating;
+          if (aNull !== bNull) return aNull ? 1 : -1;
+          return mult * ((a.rating ?? 0) - (b.rating ?? 0)) || tieBreak();
         }
         case 'nib_size': {
           const diff = nibRankValue(a.nib_size) - nibRankValue(b.nib_size);
@@ -318,6 +340,7 @@ export const PensView: React.FC<Props> = ({ pens, onRefresh, onSelectPen }) => {
     nameQuery,
     tagFilters,
     tagMatchMode,
+    ratingFilter,
     statusFilter,
     nibFilter,
     mechanismFilter,
@@ -337,6 +360,7 @@ export const PensView: React.FC<Props> = ({ pens, onRefresh, onSelectPen }) => {
         nib_material: nibMaterial,
         filling_mechanism: fillingMech,
         tags: newPenTags,
+        rating: newPenRating,
         custom_notes: customNotes,
       });
       if (photoFile) {
@@ -346,6 +370,7 @@ export const PensView: React.FC<Props> = ({ pens, onRefresh, onSelectPen }) => {
       setModel('');
       setColorVariant('');
       setNewPenTags([]);
+      setNewPenRating(null);
       setCustomNotes('');
       setPhotoFile(null);
       setShowAddModal(false);
@@ -430,6 +455,9 @@ export const PensView: React.FC<Props> = ({ pens, onRefresh, onSelectPen }) => {
             tagCounts={tagCounts}
             untaggedCount={untaggedCount}
           />
+
+          {/* Filter 4: Star Rating */}
+          <RatingFilterSelect value={ratingFilter} onChange={setRatingFilter} />
 
           <div className="flex items-center rounded-lg bg-zinc-100 dark:bg-zinc-800 p-0.5 text-xs">
             {(
@@ -584,6 +612,13 @@ export const PensView: React.FC<Props> = ({ pens, onRefresh, onSelectPen }) => {
                     onSort={handleSort}
                   />
                   <SortableTh
+                    label="Rating"
+                    sortKey="rating"
+                    activeKey={sortKey}
+                    direction={sortDir}
+                    onSort={handleSort}
+                  />
+                  <SortableTh
                     label="Nib"
                     sortKey="nib_size"
                     activeKey={sortKey}
@@ -662,6 +697,12 @@ export const PensView: React.FC<Props> = ({ pens, onRefresh, onSelectPen }) => {
                       />
                     </td>
                     <td className="py-2.5 px-3 whitespace-nowrap">
+                      <StarRating
+                        value={p.rating}
+                        onChange={(next) => handleQuickRatingChange(p.id, next)}
+                      />
+                    </td>
+                    <td className="py-2.5 px-3 whitespace-nowrap">
                       <span className="px-2 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 font-mono-num font-medium">
                         {p.nib_size}
                       </span>
@@ -706,7 +747,7 @@ export const PensView: React.FC<Props> = ({ pens, onRefresh, onSelectPen }) => {
                 ))}
                 {sortedAndFiltered.length === 0 && (
                   <tr>
-                    <td colSpan={11} className="py-10 text-center text-zinc-400">
+                    <td colSpan={12} className="py-10 text-center text-zinc-400">
                       No fountain pens match the selected filters.
                     </td>
                   </tr>
@@ -750,10 +791,14 @@ export const PensView: React.FC<Props> = ({ pens, onRefresh, onSelectPen }) => {
                   </span>
                 </div>
 
-                <div>
+                <div className="flex items-center justify-between gap-2">
                   <PenTagsInlineEditor
                     tags={p.tags ?? []}
                     onChange={(next) => handleQuickTagsChange(p.id, next)}
+                  />
+                  <StarRating
+                    value={p.rating}
+                    onChange={(next) => handleQuickRatingChange(p.id, next)}
                   />
                 </div>
 
@@ -931,6 +976,17 @@ export const PensView: React.FC<Props> = ({ pens, onRefresh, onSelectPen }) => {
                   accept="image/*"
                   onChange={(e) => setPhotoFile(e.target.files?.[0] ?? null)}
                   className="w-full text-xs text-zinc-500 pt-1"
+                />
+              </div>
+              <div className="col-span-2 flex items-center justify-between rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-950/60 px-3 py-2">
+                <span className="font-medium text-zinc-600 dark:text-zinc-400">
+                  Rating (Optional)
+                </span>
+                <StarRating
+                  value={newPenRating}
+                  onChange={setNewPenRating}
+                  size="md"
+                  showLabel
                 />
               </div>
               <div className="col-span-2">

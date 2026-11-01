@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from datetime import date
 
-from .models import Ink, Pen, ScanBatch, ScanPage, UsageSession, WritingSample
+from .models import Ink, Notebook, Pen, ScanBatch, ScanPage, UsageSession, WritingSample
 from .schemas import (
     ActivePairingSummary,
     CropBox,
@@ -14,6 +14,7 @@ from .schemas import (
     InkBrief,
     InkOut,
     LifecycleEventOut,
+    NotebookOut,
     PenBrief,
     PenOut,
     PenPhotoOut,
@@ -183,6 +184,7 @@ def serialize_pen(pen: Pen, today: date | None = None) -> PenOut:
         filling_mechanism=pen.filling_mechanism,
         status=pen.status,
         tags=parse_pen_tags(pen.tags),
+        rating=pen.rating,
         primary_photo_url=storage.get_public_url(pen.primary_photo_key),
         custom_notes=pen.custom_notes,
         is_currently_inked=active_sess is not None,
@@ -234,6 +236,7 @@ def serialize_ink(ink: Ink, today: date | None = None) -> InkOut:
         volume_ml=ink.volume_ml,
         remaining_level=ink.remaining_level,
         quantity=ink.quantity,
+        rating=ink.rating,
         mountain_of_ink_url=ink.mountain_of_ink_url,
         properties_tags=ink.properties_tags,
         custom_notes=ink.custom_notes,
@@ -244,6 +247,29 @@ def serialize_ink(ink: Ink, today: date | None = None) -> InkOut:
         total_days_inked=total_days,
         last_used_date=last_used,
         sample_count=len(ink.writing_samples or []),
+    )
+
+
+def serialize_notebook(nb: Notebook) -> NotebookOut:
+    return NotebookOut(
+        id=nb.id,
+        brand=nb.brand,
+        name=nb.name,
+        page_count=nb.page_count,
+        binding_type=nb.binding_type,
+        size=nb.size,
+        ruling=nb.ruling,
+        paper_type=nb.paper_type,
+        paper_gsm=nb.paper_gsm,
+        usage_type=nb.usage_type,
+        status=nb.status,
+        start_date=nb.start_date,
+        end_date=nb.end_date,
+        completion_pct=nb.completion_pct,
+        rating=nb.rating,
+        custom_notes=nb.custom_notes,
+        created_at=nb.created_at,
+        updated_at=nb.updated_at,
     )
 
 

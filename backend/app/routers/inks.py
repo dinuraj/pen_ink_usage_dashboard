@@ -120,6 +120,8 @@ def merge_ink_into_target(
 
     if source.mountain_of_ink_url and not target.mountain_of_ink_url:
         target.mountain_of_ink_url = source.mountain_of_ink_url
+    if target.rating is None and source.rating is not None:
+        target.rating = source.rating
     if source.custom_notes.strip():
         target.custom_notes = (
             f"{target.custom_notes}\n\n{source.custom_notes}".strip()

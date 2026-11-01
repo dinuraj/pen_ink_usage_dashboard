@@ -6,6 +6,7 @@ import {
   Check,
   ChevronDown,
   Plus,
+  Star,
   Tag,
   X,
 } from 'lucide-react';
@@ -526,3 +527,122 @@ export const SortableTh: React.FC<SortableThProps> = ({
     </th>
   );
 };
+
+export type RatingFilterValue = 'all' | '5' | '4_plus' | '3_plus' | 'unrated';
+
+export function matchesRatingFilter(
+  rating: number | null | undefined,
+  filter: RatingFilterValue,
+): boolean {
+  if (filter === 'all') return true;
+  if (filter === 'unrated') return !rating;
+  if (!rating) return false;
+  if (filter === '5') return rating === 5;
+  if (filter === '4_plus') return rating >= 4;
+  if (filter === '3_plus') return rating >= 3;
+  return true;
+}
+
+interface StarRatingProps {
+  value: number | null | undefined;
+  onChange?: (next: number | null) => Promise<void> | void;
+  size?: 'sm' | 'md';
+  showLabel?: boolean;
+}
+
+export const StarRating: React.FC<StarRatingProps> = ({
+  value,
+  onChange,
+  size = 'sm',
+  showLabel = false,
+}) => {
+  const [hoverStar, setHoverStar] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const activeLevel = hoverStar ?? (value ?? 0);
+  const iconCls = size === 'md' ? 'w-4 h-4' : 'w-3.5 h-3.5';
+  const interactive = Boolean(onChange);
+
+  const handleSelect = async (star: number) => {
+    if (!onChange || busy) return;
+    const next = value === star ? null : star;
+    setBusy(true);
+    try {
+      await onChange(next);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div
+      className="inline-flex items-center gap-0.5 select-none"
+      onClick={(e) => e.stopPropagation()}
+      onMouseLeave={() => setHoverStar(null)}
+    >
+      {[1, 2, 3, 4, 5].map((star) => {
+        const filled = star <= activeLevel;
+        return interactive ? (
+          <button
+            key={star}
+            type="button"
+            disabled={busy}
+            onMouseEnter={() => setHoverStar(star)}
+            onClick={() => void handleSelect(star)}
+            className="p-0.5 rounded hover:scale-110 transition-transform cursor-pointer disabled:opacity-50"
+            title={
+              value === star
+                ? `Rated ${star}/5 — click again to clear rating`
+                : `Rate ${star} of 5 stars`
+            }
+            aria-label={`Rate ${star} stars`}
+          >
+            <Star
+              className={`${iconCls} transition-colors ${
+                filled
+                  ? 'fill-amber-400 text-amber-400'
+                  : 'text-zinc-300 dark:text-zinc-700 hover:text-amber-300'
+              }`}
+            />
+          </button>
+        ) : (
+          <Star
+            key={star}
+            className={`${iconCls} ${
+              filled ? 'fill-amber-400 text-amber-400' : 'text-zinc-300 dark:text-zinc-700'
+            }`}
+          />
+        );
+      })}
+      {showLabel && (
+        <span className="ml-1 text-[11px] font-mono-num text-zinc-500">
+          {value ? `${value}/5` : 'Unrated'}
+        </span>
+      )}
+    </div>
+  );
+};
+
+interface RatingFilterSelectProps {
+  value: RatingFilterValue;
+  onChange: (next: RatingFilterValue) => void;
+}
+
+export const RatingFilterSelect: React.FC<RatingFilterSelectProps> = ({ value, onChange }) => (
+  <select
+    value={value}
+    onChange={(e) => onChange(e.target.value as RatingFilterValue)}
+    aria-label="Filter by star rating"
+    className={`px-2.5 py-1.5 text-xs rounded-lg border transition ${
+      value !== 'all'
+        ? 'border-amber-300 dark:border-amber-700 bg-amber-50/50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-300 font-medium'
+        : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-zinc-700 dark:text-zinc-300'
+    }`}
+  >
+    <option value="all">All Ratings</option>
+    <option value="5">★★★★★ (5★)</option>
+    <option value="4_plus">★★★★☆ &amp; Up (4★+)</option>
+    <option value="3_plus">★★★☆☆ &amp; Up (3★+)</option>
+    <option value="unrated">Unrated</option>
+  </select>
+);

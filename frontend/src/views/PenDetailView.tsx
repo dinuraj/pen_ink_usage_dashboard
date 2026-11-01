@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { api } from '../api';
 import type { InkOut, PenDetailResponse, PenOut, SessionOut, WritingSampleOut } from '../types';
-import { PEN_TAG_OPTIONS, PenTagBadge } from '../components/FilterSortControls';
+import { PEN_TAG_OPTIONS, PenTagBadge, StarRating } from '../components/FilterSortControls';
 import { MarkdownNotes } from '../components/MarkdownNotes';
 import { LifecycleActionModal, QuickInkUpModal } from '../components/ActionModals';
 import { SampleLightbox } from '../components/SampleLightbox';
@@ -142,6 +142,12 @@ export const PenDetailView: React.FC<Props> = ({
     const current = pen.tags ?? [];
     const next = current.includes(tag) ? current.filter((t) => t !== tag) : [...current, tag];
     await api.updatePen(pen.id, { tags: next });
+    await loadDetail();
+    onGlobalRefresh();
+  };
+
+  const handleRatingChange = async (nextRating: number | null) => {
+    await api.updatePen(pen.id, { rating: nextRating });
     await loadDetail();
     onGlobalRefresh();
   };
@@ -438,37 +444,49 @@ export const PenDetailView: React.FC<Props> = ({
               </div>
             )}
 
-            {/* Interactive Multi-Select Pen Tags Bar */}
-            <div className="flex flex-wrap items-center gap-2 pt-2.5 border-t border-zinc-100 dark:border-zinc-800 text-xs">
-              <span className="text-zinc-500 font-medium">Pen Tags:</span>
-              <div className="flex flex-wrap items-center gap-1.5">
-                {PEN_TAG_OPTIONS.map((tag) => {
-                  const active = (pen.tags ?? []).includes(tag);
-                  return (
-                    <button
-                      key={tag}
-                      type="button"
-                      onClick={() => void handleTogglePenTag(tag)}
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition ${
-                        active
-                          ? 'border-indigo-500 bg-indigo-50/70 dark:bg-indigo-950/40 ring-1 ring-indigo-500/20'
-                          : 'border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/60 opacity-65 hover:opacity-100'
-                      }`}
-                      title={`Toggle "${tag}" tag on this pen`}
-                    >
-                      <span
-                        className={`w-3.5 h-3.5 rounded flex items-center justify-center border ${
+            {/* Interactive Multi-Select Pen Tags & Star Rating Bar */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pt-2.5 border-t border-zinc-100 dark:border-zinc-800 text-xs">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-zinc-500 font-medium">Pen Tags:</span>
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {PEN_TAG_OPTIONS.map((tag) => {
+                    const active = (pen.tags ?? []).includes(tag);
+                    return (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => void handleTogglePenTag(tag)}
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition ${
                           active
-                            ? 'bg-indigo-600 border-indigo-600 text-white'
-                            : 'border-zinc-300 dark:border-zinc-700'
+                            ? 'border-indigo-500 bg-indigo-50/70 dark:bg-indigo-950/40 ring-1 ring-indigo-500/20'
+                            : 'border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/60 opacity-65 hover:opacity-100'
                         }`}
+                        title={`Toggle "${tag}" tag on this pen`}
                       >
-                        {active && <Check className="w-2.5 h-2.5" />}
-                      </span>
-                      <PenTagBadge tag={tag} />
-                    </button>
-                  );
-                })}
+                        <span
+                          className={`w-3.5 h-3.5 rounded flex items-center justify-center border ${
+                            active
+                              ? 'bg-indigo-600 border-indigo-600 text-white'
+                              : 'border-zinc-300 dark:border-zinc-700'
+                          }`}
+                        >
+                          {active && <Check className="w-2.5 h-2.5" />}
+                        </span>
+                        <PenTagBadge tag={tag} />
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <span className="text-zinc-500 font-medium">Rating:</span>
+                <StarRating
+                  value={pen.rating}
+                  onChange={handleRatingChange}
+                  size="md"
+                  showLabel
+                />
               </div>
             </div>
 

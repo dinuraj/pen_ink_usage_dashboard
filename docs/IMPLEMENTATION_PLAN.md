@@ -183,3 +183,18 @@ Because handwritten fountain pen logs span years of cursive notes, spelling vari
    - **Searchable Bidirectional Merging**: Use the searchable **Merge Duplicate** modal on an individual **Pen Detail** page (`#/pens/:id`) via `POST /api/pens/merge-bulk` / `POST /api/pens/{id}/merge`. Consolidates all `UsageSession`s (usage counts, `date_inked`, `date_cleaned`, `refill_count`, `LifecycleEvent`s), `WritingSample`s, `PenPhoto`s, and `custom_notes`, while saving a reversible `PenMergeRecord` snapshot that also acts as a fuzzy OCR alias for future notebook scans.
    - **Undo Merge & Ad-Hoc Session Splitting**: Mistaken merges can be reversed in 1 click via **Undo Merge (Split Back)** (`POST /api/pens/merges/{id}/undo`), restoring the absorbed pen with its original specs, sessions, samples, and active state. Additionally, **Split Sessions** (`POST /api/pens/{id}/split`) lets users check any subset of fill sessions on a pen's timeline and split them (with their dates, events, and handwriting samples) into either a brand-new pen or another existing pen.
    - Merge duplicate Ink records (`POST /api/inks/{id}/merge`) in one click, transferring all sessions and writing samples cleanly.
+
+---
+
+## 7. Ratings & Standalone Notebook Tracker
+
+1. **Pen & Ink Ratings (1–5 ★, nullable)**:
+   - `pens.rating` / `inks.rating` (`INTEGER NULL`) added via additive SQLite migration in `_ensure_sqlite_schema_migrations()`.
+   - Interactive `StarRating` (click a star to set, click the active star again to clear) inline on Pen Cabinet & Ink Library table rows and cards, on Pen/Ink Detail hero cards, and in the Add Pen / Add Ink modals.
+   - Sortable **Rating** column (unrated always sorted last) and **Rating** filter (`All`, `5★`, `4★+`, `3★+`, `Unrated`).
+   - Ratings are preserved through merges (target keeps its rating, otherwise inherits the source's) and restored on Undo Merge.
+2. **Notebooks (`#/notebooks`)** — independent of pen/ink usage sessions:
+   - Fields: Company, Book Name, Page Count, Binding Type, Size, Ruling, Paper Type, Paper Weight (gsm), Usage Type, Status (`in_use` / `stash` / `finished`), Start Date, Completion Date, Completion %, Rating, Notes.
+   - CRUD API: `GET/POST /api/notebooks`, `PATCH/DELETE /api/notebooks/{id}`.
+   - KPI strip (Total / In Use / Unused Stash / Finished / Total Pages), Company combobox + Book Name/Paper search + Status / Usage Type / Size / Rating filters, sorting on every column, inline status, completion % (auto-marks Finished at 100%) and star rating editing, Table and Cards views, Add/Edit modal.
+   - Included in Settings counts and the backup ZIP JSON export.

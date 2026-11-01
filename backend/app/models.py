@@ -25,6 +25,7 @@ class Pen(Base):
     filling_mechanism: Mapped[str] = mapped_column(String(60), default="Converter", nullable=False)
     status: Mapped[str] = mapped_column(String(30), default="active", nullable=False)  # active, retired, maintenance
     tags: Mapped[str] = mapped_column(String(250), default="", nullable=False)  # comma-separated: Everyday Use, Collectible, Vintage
+    rating: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 1..5 stars or None
     primary_photo_key: Mapped[str | None] = mapped_column(String(255), nullable=True)
     custom_notes: Mapped[str] = mapped_column(Text, default="", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
@@ -80,6 +81,7 @@ class Ink(Base):
         String(20), default="full", nullable=False
     )  # full, 75_pct, half, low, empty
     quantity: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    rating: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 1..5 stars or None
     mountain_of_ink_url: Mapped[str] = mapped_column(String(500), default="", nullable=False)
     properties_tags: Mapped[str] = mapped_column(String(250), default="", nullable=False)  # comma-separated optional tags
     custom_notes: Mapped[str] = mapped_column(Text, default="", nullable=False)
@@ -230,6 +232,33 @@ class PenMergeRecord(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
     target_pen: Mapped[Pen] = relationship("Pen", back_populates="merge_records")
+
+
+class Notebook(Base):
+    """Standalone Fountain Pen Notebook & Paper tracker."""
+
+    __tablename__ = "notebooks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    brand: Mapped[str] = mapped_column(String(120), nullable=False, index=True)  # Name of company
+    name: Mapped[str] = mapped_column(String(180), nullable=False, index=True)  # Book name
+    page_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    binding_type: Mapped[str] = mapped_column(String(80), default="Thread-Bound", nullable=False)
+    size: Mapped[str] = mapped_column(String(50), default="A5", nullable=False)
+    ruling: Mapped[str] = mapped_column(String(50), default="Dot Grid", nullable=False)
+    paper_type: Mapped[str] = mapped_column(String(120), default="", nullable=False)
+    paper_gsm: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    usage_type: Mapped[str] = mapped_column(String(80), default="Daily Journal", nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(30), default="in_use", nullable=False, index=True
+    )  # in_use, stash, finished
+    start_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    completion_pct: Mapped[int] = mapped_column(Integer, default=0, nullable=False)  # 0..100
+    rating: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 1..5 stars or None
+    custom_notes: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow)
 
 
 class AppSetting(Base):

@@ -4,6 +4,7 @@ import type {
   DashboardAnalytics,
   InkDetailResponse,
   InkOut,
+  NotebookOut,
   PenDetailResponse,
   PenOut,
   ScanBatchOut,
@@ -89,6 +90,18 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ target_id: targetId }),
     }),
+
+  // Notebooks
+  listNotebooks: () => requestJson<NotebookOut[]>('/api/notebooks'),
+  createNotebook: (data: Partial<NotebookOut>) =>
+    requestJson<NotebookOut>('/api/notebooks', { method: 'POST', body: JSON.stringify(data) }),
+  updateNotebook: (id: number, data: Partial<NotebookOut>) =>
+    requestJson<NotebookOut>(`/api/notebooks/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  deleteNotebook: (id: number) =>
+    requestJson<{ status: string }>(`/api/notebooks/${id}`, { method: 'DELETE' }),
 
   // Usage Sessions & Lifecycle
   listSessions: (params?: { status?: string; pen_id?: number; ink_id?: number }) => {

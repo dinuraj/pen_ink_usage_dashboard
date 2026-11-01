@@ -19,6 +19,7 @@ export interface PenOut {
   filling_mechanism: string;
   status: string;
   tags: string[];
+  rating: number | null;
   primary_photo_url: string | null;
   custom_notes: string;
   is_currently_inked: boolean;
@@ -54,6 +55,7 @@ export interface InkOut {
   volume_ml: number;
   remaining_level: 'full' | '75_pct' | 'half' | 'low' | 'empty' | string;
   quantity: number;
+  rating: number | null;
   mountain_of_ink_url: string;
   properties_tags: string;
   custom_notes: string;
@@ -354,6 +356,27 @@ export interface ScanBatchOut {
   pages: ScanPageOut[];
 }
 
+export interface NotebookOut {
+  id: number;
+  brand: string;
+  name: string;
+  page_count: number | null;
+  binding_type: string;
+  size: string;
+  ruling: string;
+  paper_type: string;
+  paper_gsm: number | null;
+  usage_type: string;
+  status: 'in_use' | 'stash' | 'finished' | string;
+  start_date: string | null;
+  end_date: string | null;
+  completion_pct: number;
+  rating: number | null;
+  custom_notes: string;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface AppSettingsStatus {
   gemini_configured: boolean;
   gemini_key_masked: string;
@@ -363,6 +386,7 @@ export interface AppSettingsStatus {
   counts: {
     pens: number;
     inks: number;
+    notebooks?: number;
     sessions: number;
     samples: number;
     scans: number;

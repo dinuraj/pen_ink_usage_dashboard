@@ -10,12 +10,14 @@ import {
   Moon,
   Plus,
   Feather,
+  BookOpen,
 } from 'lucide-react';
 import { api } from './api';
 import type {
   AppSettingsStatus,
   DashboardAnalytics,
   InkOut,
+  NotebookOut,
   PenOut,
 } from './types';
 import { DashboardView } from './views/DashboardView';
@@ -23,6 +25,7 @@ import { PensView } from './views/PensView';
 import { PenDetailView } from './views/PenDetailView';
 import { InksView } from './views/InksView';
 import { InkDetailView } from './views/InkDetailView';
+import { NotebooksView } from './views/NotebooksView';
 import { ScanStudioView } from './views/ScanStudioView';
 import { SamplesView } from './views/SamplesView';
 import { SettingsView } from './views/SettingsView';
@@ -32,6 +35,7 @@ type RouteState =
   | { tab: 'dashboard' }
   | { tab: 'pens'; penId?: number }
   | { tab: 'inks'; inkId?: number }
+  | { tab: 'notebooks' }
   | { tab: 'scans'; batchId?: number; pageNumber?: number; sampleId?: number }
   | { tab: 'samples' }
   | { tab: 'settings' };
@@ -55,6 +59,7 @@ function parseHash(): RouteState {
       sampleId: qs.get('sample') ? Number(qs.get('sample')) : undefined,
     };
   }
+  if (seg === 'notebooks') return { tab: 'notebooks' };
   if (seg === 'samples') return { tab: 'samples' };
   if (seg === 'settings') return { tab: 'settings' };
   return { tab: 'dashboard' };
@@ -67,6 +72,7 @@ export const App: React.FC = () => {
   const [dashboard, setDashboard] = useState<DashboardAnalytics | null>(null);
   const [pens, setPens] = useState<PenOut[]>([]);
   const [inks, setInks] = useState<InkOut[]>([]);
+  const [notebooks, setNotebooks] = useState<NotebookOut[]>([]);
   const [settings, setSettings] = useState<AppSettingsStatus | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -105,16 +111,18 @@ export const App: React.FC = () => {
   const refreshAll = useCallback(async () => {
     try {
       setError(null);
-      const [dashRes, pensRes, inksRes, settingsRes] = await Promise.all([
+      const [dashRes, pensRes, inksRes, settingsRes, notebooksRes] = await Promise.all([
         api.getDashboard(),
         api.listPens(),
         api.listInks(),
         api.getSettings(),
+        api.listNotebooks(),
       ]);
       setDashboard(dashRes);
       setPens(pensRes);
       setInks(inksRes);
       setSettings(settingsRes);
+      setNotebooks(notebooksRes);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to connect to backend API');
     } finally {
@@ -140,6 +148,7 @@ export const App: React.FC = () => {
     },
     { key: 'pens', label: 'Pen Cabinet', icon: PenTool, badge: pens.length || undefined },
     { key: 'inks', label: 'Ink Library', icon: Droplet, badge: inks.length || undefined },
+    { key: 'notebooks', label: 'Notebooks', icon: BookOpen, badge: notebooks.length || undefined },
     { key: 'scans', label: 'PDF Scan Studio', icon: FileScan },
     {
       key: 'samples',
@@ -308,6 +317,10 @@ export const App: React.FC = () => {
                 onOpenScanPage={openScanPage}
                 onGlobalRefresh={refreshAll}
               />
+            )}
+
+            {route.tab === 'notebooks' && (
+              <NotebooksView notebooks={notebooks} onRefresh={refreshAll} />
             )}
 
             {route.tab === 'scans' && (

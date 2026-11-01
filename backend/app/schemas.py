@@ -58,6 +58,7 @@ class PenCreate(BaseModel):
     filling_mechanism: str = "Converter"
     status: str = "active"
     tags: list[str] | str = []
+    rating: int | None = Field(default=None, ge=1, le=5)
     custom_notes: str = ""
 
 
@@ -70,6 +71,7 @@ class PenUpdate(BaseModel):
     filling_mechanism: str | None = None
     status: str | None = None
     tags: list[str] | str | None = None
+    rating: int | None = Field(default=None, ge=1, le=5)
     custom_notes: str | None = None
 
 
@@ -90,6 +92,7 @@ class PenOut(BaseModel):
     filling_mechanism: str
     status: str
     tags: list[str] = []
+    rating: int | None = None
     primary_photo_url: str | None = None
     custom_notes: str
     is_currently_inked: bool = False
@@ -114,6 +117,7 @@ class InkCreate(BaseModel):
     volume_ml: float = 50.0
     remaining_level: str = "full"
     quantity: int = 1
+    rating: int | None = Field(default=None, ge=1, le=5)
     mountain_of_ink_url: str = ""
     properties_tags: str = ""
     custom_notes: str = ""
@@ -128,6 +132,7 @@ class InkUpdate(BaseModel):
     volume_ml: float | None = None
     remaining_level: str | None = None
     quantity: int | None = None
+    rating: int | None = Field(default=None, ge=1, le=5)
     mountain_of_ink_url: str | None = None
     properties_tags: str | None = None
     custom_notes: str | None = None
@@ -143,6 +148,7 @@ class InkOut(BaseModel):
     volume_ml: float
     remaining_level: str
     quantity: int
+    rating: int | None = None
     mountain_of_ink_url: str
     properties_tags: str
     custom_notes: str
@@ -153,6 +159,65 @@ class InkOut(BaseModel):
     total_days_inked: int = 0
     last_used_date: date | None = None
     sample_count: int = 0
+
+
+# ---------- Notebook Schemas ----------
+
+class NotebookCreate(BaseModel):
+    brand: str = Field(..., min_length=1, max_length=120)
+    name: str = Field(..., min_length=1, max_length=180)
+    page_count: int | None = Field(default=None, ge=1, le=5000)
+    binding_type: str = "Thread-Bound"
+    size: str = "A5"
+    ruling: str = "Dot Grid"
+    paper_type: str = ""
+    paper_gsm: int | None = Field(default=None, ge=20, le=600)
+    usage_type: str = "Daily Journal"
+    status: str = "in_use"  # in_use, stash, finished
+    start_date: date | None = None
+    end_date: date | None = None
+    completion_pct: int = Field(default=0, ge=0, le=100)
+    rating: int | None = Field(default=None, ge=1, le=5)
+    custom_notes: str = ""
+
+
+class NotebookUpdate(BaseModel):
+    brand: str | None = None
+    name: str | None = None
+    page_count: int | None = Field(default=None, ge=1, le=5000)
+    binding_type: str | None = None
+    size: str | None = None
+    ruling: str | None = None
+    paper_type: str | None = None
+    paper_gsm: int | None = Field(default=None, ge=20, le=600)
+    usage_type: str | None = None
+    status: str | None = None
+    start_date: date | None = None
+    end_date: date | None = None
+    completion_pct: int | None = Field(default=None, ge=0, le=100)
+    rating: int | None = Field(default=None, ge=1, le=5)
+    custom_notes: str | None = None
+
+
+class NotebookOut(BaseModel):
+    id: int
+    brand: str
+    name: str
+    page_count: int | None = None
+    binding_type: str
+    size: str
+    ruling: str
+    paper_type: str
+    paper_gsm: int | None = None
+    usage_type: str
+    status: str
+    start_date: date | None = None
+    end_date: date | None = None
+    completion_pct: int = 0
+    rating: int | None = None
+    custom_notes: str = ""
+    created_at: datetime
+    updated_at: datetime
 
 
 # ---------- Sessions, Lifecycle & Samples ----------

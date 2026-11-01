@@ -109,6 +109,7 @@ def _merge_one_pen_into_target(db: Session, source: Pen, target: Pen) -> PenMerg
         "filling_mechanism": source.filling_mechanism,
         "status": source.status,
         "tags": source.tags,
+        "rating": source.rating,
         "primary_photo_key": source.primary_photo_key,
         "custom_notes": source.custom_notes,
     }
@@ -144,6 +145,9 @@ def _merge_one_pen_into_target(db: Session, source: Pen, target: Pen) -> PenMerg
     merged_tags = parse_pen_tags(target.tags) + parse_pen_tags(source.tags)
     if merged_tags:
         target.tags = join_pen_tags(merged_tags)
+
+    if target.rating is None and source.rating is not None:
+        target.rating = source.rating
 
     src_notes = (source.custom_notes or "").strip()
     if src_notes and src_notes not in (target.custom_notes or ""):
@@ -251,6 +255,7 @@ def undo_pen_merge(merge_id: int, db: Session = Depends(get_db)) -> dict[str, An
         filling_mechanism=snap.get("filling_mechanism", "Converter"),
         status=snap.get("status", "active"),
         tags=snap.get("tags", ""),
+        rating=snap.get("rating"),
         primary_photo_key=snap.get("primary_photo_key"),
         custom_notes=snap.get("custom_notes", ""),
     )

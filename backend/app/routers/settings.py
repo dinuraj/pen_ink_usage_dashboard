@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from ..config import BASE_DIR, DATA_DIR, GEMINI_MODEL, STORAGE_BACKEND, UPLOADS_DIR
 from ..database import get_db
-from ..models import AppSetting, Ink, LifecycleEvent, Pen, ScanBatch, UsageSession, WritingSample
+from ..models import AppSetting, Ink, LifecycleEvent, Notebook, Pen, ScanBatch, UsageSession, WritingSample
 from ..services.pdf_vision import get_gemini_api_key
 
 router = APIRouter(prefix="/api/settings", tags=["settings"])
@@ -46,6 +46,7 @@ def get_settings_status(db: Session = Depends(get_db)) -> dict[str, Any]:
         "counts": {
             "pens": db.query(Pen).count(),
             "inks": db.query(Ink).count(),
+            "notebooks": db.query(Notebook).count(),
             "sessions": db.query(UsageSession).count(),
             "samples": db.query(WritingSample).count(),
             "scans": db.query(ScanBatch).count(),
@@ -109,6 +110,7 @@ def export_backup_zip(db: Session = Depends(get_db)) -> StreamingResponse:
                 "filling_mechanism": p.filling_mechanism,
                 "status": p.status,
                 "tags": p.tags,
+                "rating": p.rating,
                 "custom_notes": p.custom_notes,
             }
             for p in db.query(Pen).all()
@@ -124,10 +126,32 @@ def export_backup_zip(db: Session = Depends(get_db)) -> StreamingResponse:
                 "volume_ml": i.volume_ml,
                 "remaining_level": i.remaining_level,
                 "quantity": i.quantity,
+                "rating": i.rating,
                 "mountain_of_ink_url": i.mountain_of_ink_url,
                 "custom_notes": i.custom_notes,
             }
             for i in db.query(Ink).all()
+        ],
+        "notebooks": [
+            {
+                "id": n.id,
+                "brand": n.brand,
+                "name": n.name,
+                "page_count": n.page_count,
+                "binding_type": n.binding_type,
+                "size": n.size,
+                "ruling": n.ruling,
+                "paper_type": n.paper_type,
+                "paper_gsm": n.paper_gsm,
+                "usage_type": n.usage_type,
+                "status": n.status,
+                "start_date": n.start_date.isoformat() if n.start_date else None,
+                "end_date": n.end_date.isoformat() if n.end_date else None,
+                "completion_pct": n.completion_pct,
+                "rating": n.rating,
+                "custom_notes": n.custom_notes,
+            }
+            for n in db.query(Notebook).all()
         ],
         "sessions": [
             {

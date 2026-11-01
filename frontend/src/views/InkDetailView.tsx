@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { api } from '../api';
 import type { InkDetailResponse, InkOut, PenOut, SessionOut, WritingSampleOut } from '../types';
+import { StarRating } from '../components/FilterSortControls';
 import { MarkdownNotes } from '../components/MarkdownNotes';
 import { QuickInkUpModal } from '../components/ActionModals';
 import { SampleLightbox } from '../components/SampleLightbox';
@@ -117,6 +118,12 @@ export const InkDetailView: React.FC<Props> = ({
 
   const handleLevelChange = async (lvl: string) => {
     await api.updateInk(ink.id, { remaining_level: lvl });
+    await loadDetail();
+    onGlobalRefresh();
+  };
+
+  const handleRatingChange = async (nextRating: number | null) => {
+    await api.updateInk(ink.id, { rating: nextRating });
     await loadDetail();
     onGlobalRefresh();
   };
@@ -376,18 +383,29 @@ export const InkDetailView: React.FC<Props> = ({
                 <h1 className="text-2xl font-semibold text-zinc-900 dark:text-zinc-100 mt-0.5">
                   {ink.name}
                 </h1>
-                {ink.properties_tags && (
-                  <div className="flex flex-wrap gap-1.5 mt-2">
-                    {ink.properties_tags.split(',').map((t, idx) => (
-                      <span
-                        key={idx}
-                        className="px-2 py-0.5 text-[11px] rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300"
-                      >
-                        {t.trim()}
-                      </span>
-                    ))}
+                <div className="flex flex-wrap items-center gap-3 mt-2">
+                  <div className="flex items-center gap-1.5 text-xs">
+                    <span className="text-zinc-500 font-medium">Rating:</span>
+                    <StarRating
+                      value={ink.rating}
+                      onChange={handleRatingChange}
+                      size="md"
+                      showLabel
+                    />
                   </div>
-                )}
+                  {ink.properties_tags && (
+                    <div className="flex flex-wrap gap-1.5">
+                      {ink.properties_tags.split(',').map((t, idx) => (
+                        <span
+                          key={idx}
+                          className="px-2 py-0.5 text-[11px] rounded bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-300"
+                        >
+                          {t.trim()}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Mountain of Ink Link + Quick Ink-Up */}

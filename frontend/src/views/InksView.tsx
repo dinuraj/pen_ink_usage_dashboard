@@ -12,7 +12,14 @@ import {
 } from 'lucide-react';
 import { api } from '../api';
 import type { InkOut } from '../types';
-import { CompanyFilterCombobox, SortableTh } from '../components/FilterSortControls';
+import {
+  CompanyFilterCombobox,
+  matchesRatingFilter,
+  RatingFilterSelect,
+  type RatingFilterValue,
+  SortableTh,
+  StarRating,
+} from '../components/FilterSortControls';
 
 interface Props {
   inks: InkOut[];
@@ -23,6 +30,7 @@ interface Props {
 type InkSortKey =
   | 'brand'
   | 'name'
+  | 'rating'
   | 'color_family'
   | 'format'
   | 'volume_ml'
@@ -35,6 +43,7 @@ type InkSortKey =
 const INK_SORT_OPTIONS: Array<{ key: InkSortKey; label: string; defaultDir: 'asc' | 'desc' }> = [
   { key: 'brand', label: 'Ink Company', defaultDir: 'asc' },
   { key: 'name', label: 'Ink Name', defaultDir: 'asc' },
+  { key: 'rating', label: 'Rating (★)', defaultDir: 'desc' },
   { key: 'color_family', label: 'Color Family', defaultDir: 'asc' },
   { key: 'format', label: 'Format', defaultDir: 'asc' },
   { key: 'volume_ml', label: 'Size (ml)', defaultDir: 'desc' },
@@ -88,6 +97,7 @@ export const InksView: React.FC<Props> = ({ inks, onRefresh, onSelectInk }) => {
   const [colorFilter, setColorFilter] = useState('all');
   const [formatFilter, setFormatFilter] = useState('all');
   const [levelFilter, setLevelFilter] = useState('all');
+  const [ratingFilter, setRatingFilter] = useState<RatingFilterValue>('all');
 
   // Column sorting
   const [sortKey, setSortKey] = useState<InkSortKey>('brand');
@@ -106,6 +116,7 @@ export const InksView: React.FC<Props> = ({ inks, onRefresh, onSelectInk }) => {
   const [volumeMl, setVolumeMl] = useState(50);
   const [quantity, setQuantity] = useState(1);
   const [remainingLevel, setRemainingLevel] = useState('full');
+  const [newInkRating, setNewInkRating] = useState<number | null>(null);
   const [moiUrl, setMoiUrl] = useState('');
   const [tags, setTags] = useState('');
   const [customNotes, setCustomNotes] = useState('');
@@ -137,7 +148,8 @@ export const InksView: React.FC<Props> = ({ inks, onRefresh, onSelectInk }) => {
     Boolean(nameQuery.trim()) ||
     colorFilter !== 'all' ||
     formatFilter !== 'all' ||
-    levelFilter !== 'all';
+    levelFilter !== 'all' ||
+    ratingFilter !== 'all';
 
   const resetFilters = () => {
     setCompanyFilter('');
@@ -146,6 +158,12 @@ export const InksView: React.FC<Props> = ({ inks, onRefresh, onSelectInk }) => {
     setColorFilter('all');
     setFormatFilter('all');
     setLevelFilter('all');
+    setRatingFilter('all');
+  };
+
+  const handleQuickRatingChange = async (inkId: number, nextRating: number | null) => {
+    await api.updateInk(inkId, { rating: nextRating });
+    onRefresh();
   };
 
   const handleQuickFormatChange = async (ink: InkOut, nextFormat: string) => {
@@ -186,6 +204,7 @@ export const InksView: React.FC<Props> = ({ inks, onRefresh, onSelectInk }) => {
       if (colorFilter !== 'all' && i.color_family !== colorFilter) return false;
       if (formatFilter !== 'all' && i.format !== formatFilter) return false;
       if (levelFilter !== 'all' && i.remaining_level !== levelFilter) return false;
+      if (!matchesRatingFilter(i.rating, ratingFilter)) return false;
       return true;
     });
 
@@ -199,6 +218,12 @@ export const InksView: React.FC<Props> = ({ inks, onRefresh, onSelectInk }) => {
           return mult * a.brand.localeCompare(b.brand) || a.name.localeCompare(b.name);
         case 'name':
           return mult * a.name.localeCompare(b.name) || tieBreak();
+        case 'rating': {
+          const aNull = !a.rating;
+          const bNull = !b.rating;
+          if (aNull !== bNull) return aNull ? 1 : -1;
+          return mult * ((a.rating ?? 0) - (b.rating ?? 0)) || tieBreak();
+        }
         case 'color_family':
           return mult * a.color_family.localeCompare(b.color_family) || tieBreak();
         case 'format': {
@@ -242,6 +267,7 @@ export const InksView: React.FC<Props> = ({ inks, onRefresh, onSelectInk }) => {
     colorFilter,
     formatFilter,
     levelFilter,
+    ratingFilter,
     sortKey,
     sortDir,
   ]);
@@ -259,6 +285,7 @@ export const InksView: React.FC<Props> = ({ inks, onRefresh, onSelectInk }) => {
         volume_ml: volumeMl,
         quantity,
         remaining_level: remainingLevel,
+        rating: newInkRating,
         mountain_of_ink_url: moiUrl,
         properties_tags: tags,
         custom_notes: customNotes,
@@ -266,6 +293,7 @@ export const InksView: React.FC<Props> = ({ inks, onRefresh, onSelectInk }) => {
       setBrand('');
       setName('');
       setQuantity(1);
+      setNewInkRating(null);
       setMoiUrl('');
       setTags('');
       setCustomNotes('');
@@ -394,6 +422,8 @@ export const InksView: React.FC<Props> = ({ inks, onRefresh, onSelectInk }) => {
             <option value="empty">Empty</option>
           </select>
 
+          <RatingFilterSelect value={ratingFilter} onChange={setRatingFilter} />
+
           {hasActiveFilters && (
             <button
               type="button"
@@ -480,6 +510,13 @@ export const InksView: React.FC<Props> = ({ inks, onRefresh, onSelectInk }) => {
                   <SortableTh
                     label="Ink Name"
                     sortKey="name"
+                    activeKey={sortKey}
+                    direction={sortDir}
+                    onSort={handleSort}
+                  />
+                  <SortableTh
+                    label="Rating"
+                    sortKey="rating"
                     activeKey={sortKey}
                     direction={sortDir}
                     onSort={handleSort}
@@ -582,6 +619,12 @@ export const InksView: React.FC<Props> = ({ inks, onRefresh, onSelectInk }) => {
                           </div>
                         </div>
                       </td>
+                      <td className="py-2.5 px-3 whitespace-nowrap">
+                        <StarRating
+                          value={ink.rating}
+                          onChange={(next) => handleQuickRatingChange(ink.id, next)}
+                        />
+                      </td>
                       <td className="py-2.5 px-3 text-zinc-600 dark:text-zinc-400">
                         {ink.color_family}
                       </td>
@@ -652,7 +695,7 @@ export const InksView: React.FC<Props> = ({ inks, onRefresh, onSelectInk }) => {
                 })}
                 {sortedAndFiltered.length === 0 && (
                   <tr>
-                    <td colSpan={10} className="py-10 text-center text-zinc-400">
+                    <td colSpan={11} className="py-10 text-center text-zinc-400">
                       No inks match the selected filters.
                     </td>
                   </tr>
@@ -704,6 +747,12 @@ export const InksView: React.FC<Props> = ({ inks, onRefresh, onSelectInk }) => {
                   <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
                     {ink.name}
                   </h3>
+                </div>
+                <div>
+                  <StarRating
+                    value={ink.rating}
+                    onChange={(next) => handleQuickRatingChange(ink.id, next)}
+                  />
                 </div>
                 <div className="flex items-center justify-between pt-2 border-t border-zinc-100 dark:border-zinc-800 text-xs text-zinc-500 font-mono-num">
                   <span>{ink.times_inked + ink.total_refills} fills</span>
@@ -883,6 +932,18 @@ export const InksView: React.FC<Props> = ({ inks, onRefresh, onSelectInk }) => {
                   onChange={(e) => setMoiUrl(e.target.value)}
                   placeholder="https://mountainofink.com/blog/..."
                   className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-950 px-3 py-1.5 text-sm"
+                />
+              </div>
+
+              <div className="col-span-2 flex items-center justify-between rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-950/60 px-3 py-2">
+                <span className="font-medium text-zinc-600 dark:text-zinc-400">
+                  Rating (Optional)
+                </span>
+                <StarRating
+                  value={newInkRating}
+                  onChange={setNewInkRating}
+                  size="md"
+                  showLabel
                 />
               </div>
 

@@ -39,6 +39,32 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ target_id: targetId }),
     }),
+  mergePensBulk: (payload: {
+    target_pen_id: number;
+    source_pen_ids: number[];
+    updated_target?: Partial<PenOut>;
+  }) =>
+    requestJson<PenOut>('/api/pens/merge-bulk', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  undoPenMerge: (mergeId: number) =>
+    requestJson<{ restored_pen: PenOut; target_pen: PenOut }>(`/api/pens/merges/${mergeId}/undo`, {
+      method: 'POST',
+    }),
+  splitPenSessions: (
+    penId: number,
+    payload: {
+      session_ids: number[];
+      standalone_sample_ids?: number[];
+      target_pen_id?: number | null;
+      new_pen?: Partial<PenOut> | null;
+    },
+  ) =>
+    requestJson<{ destination_pen: PenOut; source_pen: PenOut }>(`/api/pens/${penId}/split`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
   uploadPenPhoto: (penId: number, file: File, caption = '') => {
     const fd = new FormData();
     fd.append('file', file);

@@ -38,6 +38,12 @@ class Pen(Base):
     writing_samples: Mapped[list[WritingSample]] = relationship(
         "WritingSample", back_populates="pen", cascade="all, delete-orphan", order_by="WritingSample.sample_date.desc()"
     )
+    merge_records: Mapped[list[PenMergeRecord]] = relationship(
+        "PenMergeRecord",
+        back_populates="target_pen",
+        cascade="all, delete-orphan",
+        order_by="PenMergeRecord.id.desc()",
+    )
 
     @property
     def display_name(self) -> str:
@@ -204,6 +210,25 @@ class WritingSample(Base):
     pen: Mapped[Pen] = relationship("Pen", back_populates="writing_samples")
     ink: Mapped[Ink] = relationship("Ink", back_populates="writing_samples")
     scan_page: Mapped[ScanPage | None] = relationship("ScanPage", back_populates="samples")
+
+
+class PenMergeRecord(Base):
+    """Reversible audit log of merged duplicate Pens so merges can be undone later."""
+
+    __tablename__ = "pen_merge_records"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    target_pen_id: Mapped[int] = mapped_column(
+        ForeignKey("pens.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    source_snapshot_json: Mapped[str] = mapped_column(Text, default="{}", nullable=False)
+    moved_session_ids_json: Mapped[str] = mapped_column(Text, default="[]", nullable=False)
+    moved_sample_ids_json: Mapped[str] = mapped_column(Text, default="[]", nullable=False)
+    moved_photo_ids_json: Mapped[str] = mapped_column(Text, default="[]", nullable=False)
+    auto_closed_sessions_json: Mapped[str] = mapped_column(Text, default="[]", nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    target_pen: Mapped[Pen] = relationship("Pen", back_populates="merge_records")
 
 
 class AppSetting(Base):

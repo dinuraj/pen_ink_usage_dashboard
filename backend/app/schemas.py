@@ -296,6 +296,32 @@ class MergeTargetRequest(BaseModel):
     target_id: int
 
 
+class PenMergeRecordOut(BaseModel):
+    id: int
+    target_pen_id: int
+    source_label: str
+    source_brand: str
+    source_model: str
+    source_color_variant: str = ""
+    source_nib_size: str = "M"
+    moved_sessions_count: int = 0
+    moved_samples_count: int = 0
+    created_at: str
+
+
+class BulkPenMergeRequest(BaseModel):
+    target_pen_id: int
+    source_pen_ids: list[int]
+    updated_target: PenUpdate | None = None
+
+
+class SplitPenSessionsRequest(BaseModel):
+    session_ids: list[int] = []
+    standalone_sample_ids: list[int] = []
+    target_pen_id: int | None = None
+    new_pen: PenCreate | None = None
+
+
 class ImportedPageEntryOut(BaseModel):
     sample_id: int
     session_id: int | None = None

@@ -8,7 +8,11 @@ import {
   Trash2,
   Edit3,
   GitMerge,
+  GitFork,
+  RotateCcw,
+  Search,
   FileScan,
+  CheckCircle2,
   X,
 } from 'lucide-react';
 import { api } from '../api';
@@ -44,9 +48,39 @@ export const PenDetailView: React.FC<Props> = ({
   const [showInkUpModal, setShowInkUpModal] = useState(false);
   const [lightboxSample, setLightboxSample] = useState<WritingSampleOut | null>(null);
   const [editingSpecs, setEditingSpecs] = useState(false);
-  const [showMergeModal, setShowMergeModal] = useState(false);
-  const [mergeTargetId, setMergeTargetId] = useState<number>(0);
   const [editingSession, setEditingSession] = useState<SessionOut | null>(null);
+  const [bannerNotice, setBannerNotice] = useState<{
+    message: string;
+    actionPenId?: number;
+    actionLabel?: string;
+  } | null>(null);
+
+  // Merge modal state (searchable + bidirectional: absorb into this pen OR merge this pen into another)
+  const [showMergeModal, setShowMergeModal] = useState(false);
+  const [mergeDirection, setMergeDirection] = useState<'absorb_into_this' | 'move_this_into_other'>(
+    'absorb_into_this',
+  );
+  const [mergeQuery, setMergeQuery] = useState('');
+  const [absorbPenIds, setAbsorbPenIds] = useState<number[]>([]);
+  const [mergeTargetId, setMergeTargetId] = useState<number>(0);
+  const [mergingBusy, setMergingBusy] = useState(false);
+
+  // Split sessions state (select fill rows -> move to new pen or existing pen)
+  const [selectedSessionIds, setSelectedSessionIds] = useState<number[]>([]);
+  const [showSplitModal, setShowSplitModal] = useState(false);
+  const [splitDestMode, setSplitDestMode] = useState<'new_pen' | 'existing_pen'>('new_pen');
+  const [splitTargetPenId, setSplitTargetPenId] = useState<number>(0);
+  const [splitSearch, setSplitSearch] = useState('');
+  const [splitNewPen, setSplitNewPen] = useState({
+    brand: '',
+    model: '',
+    color_variant: '',
+    nib_size: 'M',
+    nib_material: 'Steel',
+    filling_mechanism: 'Converter',
+  });
+  const [splittingBusy, setSplittingBusy] = useState(false);
+
   const [specForm, setSpecForm] = useState({
     brand: '',
     model: '',
@@ -61,6 +95,7 @@ export const PenDetailView: React.FC<Props> = ({
     try {
       const res = await api.getPenDetail(penId);
       setDetail(res);
+      setSelectedSessionIds([]);
       setSpecForm({
         brand: res.pen.brand,
         model: res.pen.model,
@@ -75,6 +110,7 @@ export const PenDetailView: React.FC<Props> = ({
   }, [penId]);
 
   useEffect(() => {
+    setBannerNotice(null);
     void loadDetail();
   }, [loadDetail]);
 
@@ -82,7 +118,7 @@ export const PenDetailView: React.FC<Props> = ({
     return <div className="py-16 text-center text-xs text-zinc-400">Loading pen details...</div>;
   }
 
-  const { pen, favorite_ink, sessions, samples } = detail;
+  const { pen, favorite_ink, sessions, samples, merge_history = [] } = detail;
 
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -108,19 +144,124 @@ export const PenDetailView: React.FC<Props> = ({
   };
 
   const otherPens = allPens.filter((p) => p.id !== pen.id);
+  const filteredMergePens = otherPens.filter((p) =>
+    `${p.brand} ${p.model} ${p.color_variant} ${p.nib_size}`
+      .toLowerCase()
+      .includes(mergeQuery.toLowerCase()),
+  );
+  const filteredSplitPens = otherPens.filter((p) =>
+    `${p.brand} ${p.model} ${p.color_variant} ${p.nib_size}`
+      .toLowerCase()
+      .includes(splitSearch.toLowerCase()),
+  );
 
-  const handleMergePen = async (e: React.FormEvent) => {
+  const openMergeModal = () => {
+    setMergeQuery('');
+    setAbsorbPenIds([]);
+    setMergeTargetId(otherPens[0]?.id ?? 0);
+    setMergeDirection('absorb_into_this');
+    setShowMergeModal(true);
+  };
+
+  const handleMergeSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!mergeTargetId) return;
-    const merged = await api.mergePen(pen.id, mergeTargetId);
-    setShowMergeModal(false);
+    setMergingBusy(true);
+    try {
+      if (mergeDirection === 'absorb_into_this') {
+        if (absorbPenIds.length === 0) return;
+        await api.mergePensBulk({
+          target_pen_id: pen.id,
+          source_pen_ids: absorbPenIds,
+        });
+        setShowMergeModal(false);
+        setBannerNotice({
+          message: `Merged ${absorbPenIds.length} duplicate pen record(s) into ${pen.brand} ${pen.model}. You can undo anytime below.`,
+        });
+        await loadDetail();
+        onGlobalRefresh();
+      } else {
+        if (!mergeTargetId) return;
+        const merged = await api.mergePen(pen.id, mergeTargetId);
+        setShowMergeModal(false);
+        onGlobalRefresh();
+        onOpenPen(merged.id);
+      }
+    } finally {
+      setMergingBusy(false);
+    }
+  };
+
+  const handleUndoMerge = async (mergeId: number, label: string) => {
+    if (
+      !window.confirm(
+        `Undo merge of "${label}" and restore it as a separate pen with its original fill sessions and samples?`,
+      )
+    )
+      return;
+    const res = await api.undoPenMerge(mergeId);
+    setBannerNotice({
+      message: `Split "${res.restored_pen.brand} ${res.restored_pen.model}" back into its own pen record (${res.restored_pen.times_inked} fills restored).`,
+      actionPenId: res.restored_pen.id,
+      actionLabel: 'Open Restored Pen',
+    });
+    await loadDetail();
     onGlobalRefresh();
-    onOpenPen(merged.id);
+  };
+
+  const openSplitModal = (preselected?: number[]) => {
+    const initial = preselected ?? selectedSessionIds;
+    if (initial.length > 0) {
+      setSelectedSessionIds(initial);
+    }
+    setSplitDestMode('new_pen');
+    setSplitSearch('');
+    setSplitTargetPenId(otherPens[0]?.id ?? 0);
+    setSplitNewPen({
+      brand: pen.brand,
+      model: pen.model,
+      color_variant: '',
+      nib_size: pen.nib_size,
+      nib_material: pen.nib_material,
+      filling_mechanism: pen.filling_mechanism,
+    });
+    setShowSplitModal(true);
+  };
+
+  const toggleSessionSelection = (sessionId: number) => {
+    setSelectedSessionIds((prev) =>
+      prev.includes(sessionId) ? prev.filter((id) => id !== sessionId) : [...prev, sessionId],
+    );
+  };
+
+  const handleSplitSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (selectedSessionIds.length === 0) return;
+    setSplittingBusy(true);
+    try {
+      const res = await api.splitPenSessions(pen.id, {
+        session_ids: selectedSessionIds,
+        new_pen: splitDestMode === 'new_pen' ? splitNewPen : null,
+        target_pen_id: splitDestMode === 'existing_pen' ? splitTargetPenId : null,
+      });
+      setShowSplitModal(false);
+      setSelectedSessionIds([]);
+      setBannerNotice({
+        message: `Moved ${selectedSessionIds.length} fill session(s) and their samples to "${res.destination_pen.brand} ${res.destination_pen.model}${
+          res.destination_pen.color_variant ? ` (${res.destination_pen.color_variant})` : ''
+        }".`,
+        actionPenId: res.destination_pen.id,
+        actionLabel: 'Open Split Pen',
+      });
+      await loadDetail();
+      onGlobalRefresh();
+    } finally {
+      setSplittingBusy(false);
+    }
   };
 
   return (
     <div className="space-y-6">
-      {/* Top Breadcrumb */}
+      {/* Top Breadcrumb & Actions */}
       <div className="flex items-center justify-between flex-wrap gap-2">
         <button
           onClick={onBack}
@@ -129,7 +270,7 @@ export const PenDetailView: React.FC<Props> = ({
           <ArrowLeft className="w-3.5 h-3.5" />
           Back to Pen Cabinet
         </button>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <button
             onClick={() => setEditingSpecs((v) => !v)}
             className="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-md border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800"
@@ -139,15 +280,22 @@ export const PenDetailView: React.FC<Props> = ({
           </button>
           {otherPens.length > 0 && (
             <button
-              onClick={() => {
-                setMergeTargetId(otherPens[0].id);
-                setShowMergeModal(true);
-              }}
+              onClick={openMergeModal}
               className="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-md border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-              title="Merge duplicate pen entry into another pen"
+              title="Merge duplicate pen names together"
             >
               <GitMerge className="w-3.5 h-3.5 text-indigo-500" />
               Merge Duplicate
+            </button>
+          )}
+          {sessions.length > 0 && (
+            <button
+              onClick={() => openSplitModal()}
+              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-md border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              title="Split selected ink-up sessions out into a separate pen"
+            >
+              <GitFork className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+              Split Sessions
             </button>
           )}
           <button
@@ -159,6 +307,34 @@ export const PenDetailView: React.FC<Props> = ({
           </button>
         </div>
       </div>
+
+      {/* Confirmation / Split / Undo Banner */}
+      {bannerNotice && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-emerald-200 dark:border-emerald-900/60 bg-emerald-50 dark:bg-emerald-950/30 px-4 py-2.5 text-xs text-emerald-900 dark:text-emerald-200">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <span>{bannerNotice.message}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            {bannerNotice.actionPenId && (
+              <button
+                type="button"
+                onClick={() => onOpenPen(bannerNotice.actionPenId!)}
+                className="px-2.5 py-1 rounded-md bg-emerald-700 text-white font-medium hover:bg-emerald-600"
+              >
+                {bannerNotice.actionLabel || 'Open Pen'}
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setBannerNotice(null)}
+              className="p-1 text-emerald-700 dark:text-emerald-300"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Hero Card */}
       <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden">
@@ -262,17 +438,15 @@ export const PenDetailView: React.FC<Props> = ({
                       style={{ backgroundColor: pen.active_pairing.ink_hex }}
                     />
                     <div>
-                      <div className="font-semibold text-zinc-900 dark:text-zinc-100">
-                        Currently Inked:{' '}
-                        <button
-                          onClick={() => onOpenInk(pen.active_pairing!.ink_id)}
-                          className="hover:underline text-indigo-600 dark:text-indigo-400"
-                        >
-                          {pen.active_pairing.ink_brand} {pen.active_pairing.ink_name}
-                        </button>
-                      </div>
-                      <div className="text-zinc-500 font-mono-num">
-                        Inked {pen.active_pairing.date_inked} · {pen.active_pairing.days_inked} days
+                      <button
+                        onClick={() => onOpenInk(pen.active_pairing!.ink_id)}
+                        className="font-semibold hover:text-indigo-600 dark:hover:text-indigo-400"
+                      >
+                        Currently Inked: {pen.active_pairing.ink_brand}{' '}
+                        {pen.active_pairing.ink_name}
+                      </button>
+                      <div className="text-zinc-400 font-mono-num">
+                        Since {pen.active_pairing.date_inked} · {pen.active_pairing.days_inked}d
                         active · {pen.active_pairing.refill_count} refills
                       </div>
                     </div>
@@ -280,32 +454,29 @@ export const PenDetailView: React.FC<Props> = ({
                   <div className="flex items-center gap-2 text-xs">
                     <button
                       onClick={() => setLifecycleMode('refill')}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 font-medium hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 font-medium hover:bg-zinc-50 dark:hover:bg-zinc-800"
                     >
                       <RefreshCw className="w-3.5 h-3.5 text-indigo-500" />
-                      Log Refill
+                      Refill Pen
                     </button>
                     <button
                       onClick={() => setLifecycleMode('clean')}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 font-medium hover:opacity-90"
+                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 font-medium"
                     >
                       <Sparkles className="w-3.5 h-3.5" />
-                      Mark Cleaned / Empty
+                      Mark Cleaned
                     </button>
                   </div>
                 </>
               ) : (
                 <>
-                  <div className="text-xs text-zinc-500">
-                    Status:{' '}
-                    <span className="font-semibold text-zinc-700 dark:text-zinc-300">
-                      Clean &amp; Uninked
-                    </span>{' '}
-                    {pen.last_cleaned_date && `(last flushed ${pen.last_cleaned_date})`}
-                  </div>
+                  <span className="text-xs text-zinc-500">
+                    Currently clean and stored in cabinet.{' '}
+                    {pen.last_cleaned_date && `Last cleaned ${pen.last_cleaned_date}.`}
+                  </span>
                   <button
                     onClick={() => setShowInkUpModal(true)}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 text-xs font-medium hover:opacity-90"
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-medium hover:bg-indigo-500"
                   >
                     <Plus className="w-3.5 h-3.5" />
                     Ink Up This Pen
@@ -315,47 +486,88 @@ export const PenDetailView: React.FC<Props> = ({
             </div>
           </div>
         </div>
+
+        {/* Pen KPI Strip */}
+        <div className="grid grid-cols-2 md:grid-cols-4 border-t border-zinc-200 dark:border-zinc-800 divide-x divide-y md:divide-y-0 divide-zinc-200 dark:divide-zinc-800 bg-zinc-50/60 dark:bg-zinc-950/40 text-xs">
+          <div className="p-3.5">
+            <div className="text-zinc-400">Times Inked</div>
+            <div className="text-lg font-semibold font-mono-num mt-0.5">{pen.times_inked}</div>
+          </div>
+          <div className="p-3.5">
+            <div className="text-zinc-400">Reservoir Refills</div>
+            <div className="text-lg font-semibold font-mono-num mt-0.5">{pen.total_refills}</div>
+          </div>
+          <div className="p-3.5">
+            <div className="text-zinc-400">Total Days Inked</div>
+            <div className="text-lg font-semibold font-mono-num mt-0.5">
+              {pen.total_days_inked}d{' '}
+              <span className="text-xs font-normal text-zinc-400">
+                (avg {pen.avg_days_inked}d/fill)
+              </span>
+            </div>
+          </div>
+          <div className="p-3.5">
+            <div className="text-zinc-400">Most Paired Ink</div>
+            {favorite_ink ? (
+              <button
+                onClick={() => onOpenInk(favorite_ink.id)}
+                className="mt-1 inline-flex items-center gap-1.5 font-medium hover:text-indigo-600 truncate max-w-full"
+              >
+                <span
+                  className="w-2.5 h-2.5 rounded-full shrink-0"
+                  style={{ backgroundColor: favorite_ink.hex_color }}
+                />
+                <span className="truncate">{favorite_ink.name}</span>
+                <span className="font-mono-num text-zinc-400">({favorite_ink.count}×)</span>
+              </button>
+            ) : (
+              <div className="text-zinc-400 mt-1">—</div>
+            )}
+          </div>
+        </div>
       </div>
 
-      {/* Pen KPIs */}
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-        <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-3.5">
-          <div className="text-[11px] text-zinc-500">Times Inked</div>
-          <div className="text-xl font-semibold font-mono-num mt-1">{pen.times_inked}</div>
+      {/* Merged Names / Undo Merge History Card */}
+      {merge_history.length > 0 && (
+        <div className="rounded-xl border border-indigo-200/80 dark:border-indigo-900/60 bg-indigo-50/40 dark:bg-indigo-950/20 p-4 space-y-2.5">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-xs font-semibold text-indigo-950 dark:text-indigo-200">
+              <GitMerge className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+              <span>Merged Journal Aliases ({merge_history.length})</span>
+            </div>
+            <span className="text-[11px] text-zinc-500">
+              Future scans using these names automatically match this pen · Click Undo to split back
+            </span>
+          </div>
+          <div className="divide-y divide-indigo-100 dark:divide-indigo-900/40">
+            {merge_history.map((mr) => (
+              <div
+                key={mr.id}
+                className="flex flex-wrap items-center justify-between gap-2 py-2 first:pt-0 last:pb-0 text-xs"
+              >
+                <div>
+                  <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                    {mr.source_label}
+                  </span>
+                  <span className="ml-2 font-mono-num text-[11px] text-zinc-500">
+                    ({mr.moved_sessions_count} fills · {mr.moved_samples_count} samples merged)
+                  </span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleUndoMerge(mr.id, mr.source_label)}
+                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-indigo-200 dark:border-indigo-800 bg-white dark:bg-zinc-900 text-[11px] font-medium text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-indigo-950/60"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  Undo Merge (Split Back)
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
-        <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-3.5">
-          <div className="text-[11px] text-zinc-500">Reservoir Refills</div>
-          <div className="text-xl font-semibold font-mono-num mt-1">{pen.total_refills}</div>
-        </div>
-        <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-3.5">
-          <div className="text-[11px] text-zinc-500">Total Days Inked</div>
-          <div className="text-xl font-semibold font-mono-num mt-1">{pen.total_days_inked}d</div>
-        </div>
-        <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-3.5">
-          <div className="text-[11px] text-zinc-500">Avg Fill Duration</div>
-          <div className="text-xl font-semibold font-mono-num mt-1">{pen.avg_days_inked}d</div>
-        </div>
-        <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-3.5 col-span-2 md:col-span-1">
-          <div className="text-[11px] text-zinc-500">Most Paired Ink</div>
-          {favorite_ink ? (
-            <button
-              onClick={() => onOpenInk(favorite_ink.id)}
-              className="mt-1 inline-flex items-center gap-1.5 text-xs font-semibold hover:text-indigo-600 truncate max-w-full"
-            >
-              <span
-                className="w-2.5 h-2.5 rounded-full shrink-0"
-                style={{ backgroundColor: favorite_ink.hex_color }}
-              />
-              <span className="truncate">{favorite_ink.name}</span>
-              <span className="text-zinc-400 font-mono-num">({favorite_ink.count}×)</span>
-            </button>
-          ) : (
-            <div className="text-xs text-zinc-400 mt-1">—</div>
-          )}
-        </div>
-      </div>
+      )}
 
-      {/* Standalone Custom Notes */}
+      {/* Standalone Custom Markdown Notes */}
       <MarkdownNotes
         title="Pen Notes & Nib Setup"
         placeholder="Record standalone notes about this pen (nib feel, tuning history, converter type, favorite papers)..."
@@ -417,18 +629,40 @@ export const PenDetailView: React.FC<Props> = ({
         )}
       </div>
 
-      {/* Complete Lifecycle & Cleaning Timeline */}
+      {/* Complete Lifecycle & Cleaning Timeline (with Checkboxes to Split Sessions!) */}
       <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden">
-        <div className="px-5 py-3.5 border-b border-zinc-200 dark:border-zinc-800">
-          <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
-            Complete Ink-Up, Refill &amp; Cleaning History ({sessions.length})
-          </h3>
+        <div className="flex flex-wrap items-center justify-between gap-2 px-5 py-3.5 border-b border-zinc-200 dark:border-zinc-800">
+          <div>
+            <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">
+              Complete Ink-Up, Refill &amp; Cleaning History ({sessions.length})
+            </h3>
+            <p className="text-[11px] text-zinc-400">
+              Select checkboxes on any fill rows to split them out into a separate pen record
+            </p>
+          </div>
+          {sessions.length > 0 && (
+            <button
+              type="button"
+              onClick={() => openSplitModal()}
+              className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition ${
+                selectedSessionIds.length > 0
+                  ? 'bg-emerald-600 text-white hover:bg-emerald-500'
+                  : 'border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-200'
+              }`}
+            >
+              <GitFork className="w-3.5 h-3.5" />
+              {selectedSessionIds.length > 0
+                ? `Split ${selectedSessionIds.length} Selected Fill${selectedSessionIds.length > 1 ? 's' : ''}…`
+                : 'Split / Move Fills…'}
+            </button>
+          )}
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-950/40 text-[11px] font-medium uppercase tracking-wider text-zinc-500">
-                <th className="py-2.5 px-4">Ink Paired</th>
+                <th className="py-2.5 pl-4 pr-2 w-8">Split</th>
+                <th className="py-2.5 px-3">Ink Paired</th>
                 <th className="py-2.5 px-3">Date Inked</th>
                 <th className="py-2.5 px-4">Lifecycle Events / Source Scan</th>
                 <th className="py-2.5 px-3">Date Cleaned</th>
@@ -441,9 +675,26 @@ export const PenDetailView: React.FC<Props> = ({
                 const scanSample = s.samples.find(
                   (ws) => ws.scan_batch_id && ws.scan_page_number,
                 );
+                const checked = selectedSessionIds.includes(s.id);
                 return (
-                  <tr key={s.id} className="hover:bg-zinc-50/80 dark:hover:bg-zinc-800/30">
-                    <td className="py-2.5 px-4">
+                  <tr
+                    key={s.id}
+                    className={
+                      checked
+                        ? 'bg-emerald-50/50 dark:bg-emerald-950/20'
+                        : 'hover:bg-zinc-50/80 dark:hover:bg-zinc-800/30'
+                    }
+                  >
+                    <td className="py-2.5 pl-4 pr-2">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleSessionSelection(s.id)}
+                        className="rounded border-zinc-300 text-emerald-600 cursor-pointer"
+                        title="Select session to split into another pen"
+                      />
+                    </td>
+                    <td className="py-2.5 px-3">
                       <button
                         onClick={() => onOpenInk(s.ink_id)}
                         className="inline-flex items-center gap-2 font-medium text-zinc-900 dark:text-zinc-100 hover:text-indigo-600"
@@ -551,41 +802,172 @@ export const PenDetailView: React.FC<Props> = ({
         />
       )}
 
+      {/* Searchable Bidirectional Merge Duplicate Modal */}
       {showMergeModal && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4"
           onClick={() => setShowMergeModal(false)}
         >
           <form
-            onSubmit={handleMergePen}
+            onSubmit={handleMergeSubmit}
             onClick={(e) => e.stopPropagation()}
-            className="w-full max-w-md rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 shadow-xl space-y-4 text-xs"
+            className="w-full max-w-lg rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 shadow-xl space-y-4 text-xs"
           >
             <div className="flex items-center justify-between">
-              <h3 className="text-sm font-semibold">Merge Duplicate Pen</h3>
+              <div className="flex items-center gap-2">
+                <GitMerge className="w-4 h-4 text-indigo-500" />
+                <h3 className="text-sm font-semibold">Merge Duplicate Pen Records</h3>
+              </div>
               <button type="button" onClick={() => setShowMergeModal(false)}>
                 <X className="w-4 h-4 text-zinc-400" />
               </button>
             </div>
-            <p className="text-zinc-500 leading-relaxed">
-              Move all <strong>{pen.times_inked}</strong> ink-up sessions and{' '}
-              <strong>{pen.sample_count}</strong> handwriting samples from{' '}
-              <strong>
-                {pen.brand} {pen.model} {pen.color_variant ? `(${pen.color_variant})` : ''}
-              </strong>{' '}
-              into the target pen below, then remove this duplicate record:
+
+            <div className="grid grid-cols-2 gap-1 rounded-lg bg-zinc-100 dark:bg-zinc-800 p-1">
+              <button
+                type="button"
+                onClick={() => setMergeDirection('absorb_into_this')}
+                className={`py-1.5 px-2 rounded-md font-medium transition ${
+                  mergeDirection === 'absorb_into_this'
+                    ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-2xs'
+                    : 'text-zinc-600 dark:text-zinc-400'
+                }`}
+              >
+                Keep This Pen (Absorb Duplicates)
+              </button>
+              <button
+                type="button"
+                onClick={() => setMergeDirection('move_this_into_other')}
+                className={`py-1.5 px-2 rounded-md font-medium transition ${
+                  mergeDirection === 'move_this_into_other'
+                    ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-2xs'
+                    : 'text-zinc-600 dark:text-zinc-400'
+                }`}
+              >
+                Move This Pen Into Another
+              </button>
+            </div>
+
+            <div className="relative">
+              <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                value={mergeQuery}
+                onChange={(e) => setMergeQuery(e.target.value)}
+                placeholder="Search pens by brand, model, color, nib..."
+                className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950"
+              />
+            </div>
+
+            {mergeDirection === 'absorb_into_this' ? (
+              <>
+                <p className="text-zinc-500">
+                  Tick one or more differently-named entries below to merge all their usage
+                  sessions, ink dates, and samples into{' '}
+                  <strong>
+                    {pen.brand} {pen.model} {pen.color_variant ? `(${pen.color_variant})` : ''}
+                  </strong>
+                  :
+                </p>
+                <div className="max-h-56 overflow-y-auto divide-y divide-zinc-100 dark:divide-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-800">
+                  {filteredMergePens.map((p) => {
+                    const checked = absorbPenIds.includes(p.id);
+                    return (
+                      <label
+                        key={p.id}
+                        className={`flex items-center justify-between gap-2 px-3 py-2 cursor-pointer ${
+                          checked
+                            ? 'bg-indigo-50/70 dark:bg-indigo-950/30'
+                            : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/40'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() =>
+                              setAbsorbPenIds((prev) =>
+                                prev.includes(p.id)
+                                  ? prev.filter((x) => x !== p.id)
+                                  : [...prev, p.id],
+                              )
+                            }
+                            className="rounded border-zinc-300 text-indigo-600"
+                          />
+                          <div className="truncate">
+                            <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                              {p.brand} {p.model}
+                            </span>
+                            {p.color_variant && (
+                              <span className="text-zinc-500 ml-1">({p.color_variant})</span>
+                            )}
+                            <span className="ml-1.5 px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 font-mono-num text-[10px]">
+                              {p.nib_size}
+                            </span>
+                          </div>
+                        </div>
+                        <span className="font-mono-num text-[11px] text-zinc-400 shrink-0">
+                          {p.times_inked} fills
+                        </span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </>
+            ) : (
+              <>
+                <p className="text-zinc-500">
+                  Move all <strong>{pen.times_inked}</strong> fills and{' '}
+                  <strong>{pen.sample_count}</strong> samples from{' '}
+                  <strong>
+                    {pen.brand} {pen.model}
+                  </strong>{' '}
+                  into the target pen below:
+                </p>
+                <div className="max-h-56 overflow-y-auto divide-y divide-zinc-100 dark:divide-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-800">
+                  {filteredMergePens.map((p) => (
+                    <label
+                      key={p.id}
+                      className={`flex items-center justify-between gap-2 px-3 py-2 cursor-pointer ${
+                        mergeTargetId === p.id
+                          ? 'bg-indigo-50/70 dark:bg-indigo-950/30'
+                          : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/40'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <input
+                          type="radio"
+                          name="mergeTarget"
+                          checked={mergeTargetId === p.id}
+                          onChange={() => setMergeTargetId(p.id)}
+                          className="text-indigo-600"
+                        />
+                        <div className="truncate">
+                          <span className="font-medium text-zinc-900 dark:text-zinc-100">
+                            {p.brand} {p.model}
+                          </span>
+                          {p.color_variant && (
+                            <span className="text-zinc-500 ml-1">({p.color_variant})</span>
+                          )}
+                          <span className="ml-1.5 px-1.5 py-0.5 rounded bg-zinc-100 dark:bg-zinc-800 font-mono-num text-[10px]">
+                            {p.nib_size}
+                          </span>
+                        </div>
+                      </div>
+                      <span className="font-mono-num text-[11px] text-zinc-400 shrink-0">
+                        {p.times_inked} fills
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </>
+            )}
+
+            <p className="text-[11px] text-zinc-400">
+              Every merge is recorded and can be reversed in 1 click via{' '}
+              <strong>Undo Merge (Split Back)</strong>, or split session-by-session anytime.
             </p>
-            <select
-              value={mergeTargetId}
-              onChange={(e) => setMergeTargetId(Number(e.target.value))}
-              className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-3 py-2 text-sm"
-            >
-              {otherPens.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.brand} {p.model} {p.color_variant ? `(${p.color_variant})` : ''} · {p.nib_size}
-                </option>
-              ))}
-            </select>
+
             <div className="flex justify-end gap-2">
               <button
                 type="button"
@@ -596,10 +978,261 @@ export const PenDetailView: React.FC<Props> = ({
               </button>
               <button
                 type="submit"
-                className="px-4 py-1.5 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-500"
+                disabled={
+                  mergingBusy ||
+                  (mergeDirection === 'absorb_into_this'
+                    ? absorbPenIds.length === 0
+                    : !mergeTargetId)
+                }
+                className="px-4 py-1.5 rounded-lg bg-indigo-600 text-white font-medium hover:bg-indigo-500 disabled:opacity-45"
               >
-                Merge Pens
+                {mergingBusy ? 'Merging...' : 'Merge Pens'}
               </button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Split Selected Fill Sessions Modal */}
+      {showSplitModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4"
+          onClick={() => setShowSplitModal(false)}
+        >
+          <form
+            onSubmit={handleSplitSubmit}
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-2xl rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 p-5 shadow-xl space-y-4 text-xs max-h-[90vh] overflow-y-auto"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <GitFork className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <h3 className="text-sm font-semibold">
+                  Split Fill Sessions into a Separate Pen
+                </h3>
+              </div>
+              <button type="button" onClick={() => setShowSplitModal(false)}>
+                <X className="w-4 h-4 text-zinc-400" />
+              </button>
+            </div>
+
+            <p className="text-zinc-500">
+              Tick the ink-up sessions below that actually belong to a different pen. Their ink
+              dates, cleaning dates, refills, and handwriting samples will all move together:
+            </p>
+
+            {/* Step 1: Checkable Sessions List with Sample Preview */}
+            <div className="max-h-56 overflow-y-auto divide-y divide-zinc-100 dark:divide-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-800">
+              {sessions.map((s) => {
+                const checked = selectedSessionIds.includes(s.id);
+                const thumb = s.samples[0]?.image_url;
+                return (
+                  <label
+                    key={s.id}
+                    className={`flex items-center justify-between gap-3 px-3 py-2 cursor-pointer ${
+                      checked
+                        ? 'bg-emerald-50/70 dark:bg-emerald-950/30'
+                        : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/40'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() => toggleSessionSelection(s.id)}
+                        className="rounded border-zinc-300 text-emerald-600"
+                      />
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 font-medium text-zinc-900 dark:text-zinc-100">
+                          <span className="font-mono-num text-zinc-500">{s.date_inked}</span>
+                          <span>·</span>
+                          <span
+                            className="w-2.5 h-2.5 rounded-full shrink-0"
+                            style={{ backgroundColor: s.ink.hex_color }}
+                          />
+                          <span className="truncate">
+                            {s.ink.brand} {s.ink.name}
+                          </span>
+                        </div>
+                        {s.session_notes && (
+                          <div className="text-[11px] text-zinc-400 truncate">
+                            {s.session_notes}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                    {thumb && (
+                      <img
+                        src={thumb}
+                        alt="Sample"
+                        className="h-9 w-28 object-contain rounded border border-zinc-200 bg-[#fcfaf4] shrink-0"
+                      />
+                    )}
+                  </label>
+                );
+              })}
+            </div>
+
+            {/* Step 2: Destination Pen (New vs Existing) */}
+            <div className="space-y-3 pt-1">
+              <div className="grid grid-cols-2 gap-1 rounded-lg bg-zinc-100 dark:bg-zinc-800 p-1">
+                <button
+                  type="button"
+                  onClick={() => setSplitDestMode('new_pen')}
+                  className={`py-1.5 px-2 rounded-md font-medium transition ${
+                    splitDestMode === 'new_pen'
+                      ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-2xs'
+                      : 'text-zinc-600 dark:text-zinc-400'
+                  }`}
+                >
+                  Create New Pen for Split Fills
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSplitDestMode('existing_pen')}
+                  className={`py-1.5 px-2 rounded-md font-medium transition ${
+                    splitDestMode === 'existing_pen'
+                      ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-2xs'
+                      : 'text-zinc-600 dark:text-zinc-400'
+                  }`}
+                >
+                  Move to Existing Pen
+                </button>
+              </div>
+
+              {splitDestMode === 'new_pen' ? (
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-950/50 p-3">
+                  <div>
+                    <label className="block text-[10px] text-zinc-500 mb-0.5">Brand *</label>
+                    <input
+                      required
+                      value={splitNewPen.brand}
+                      onChange={(e) => setSplitNewPen({ ...splitNewPen, brand: e.target.value })}
+                      className="w-full rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2.5 py-1.5"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-zinc-500 mb-0.5">Model *</label>
+                    <input
+                      required
+                      value={splitNewPen.model}
+                      onChange={(e) => setSplitNewPen({ ...splitNewPen, model: e.target.value })}
+                      className="w-full rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2.5 py-1.5"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-zinc-500 mb-0.5">
+                      Color / Distinguishing Variant
+                    </label>
+                    <input
+                      value={splitNewPen.color_variant}
+                      onChange={(e) =>
+                        setSplitNewPen({ ...splitNewPen, color_variant: e.target.value })
+                      }
+                      placeholder="e.g., Matte Black, B Nib..."
+                      className="w-full rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2.5 py-1.5"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-zinc-500 mb-0.5">Nib Size</label>
+                    <input
+                      value={splitNewPen.nib_size}
+                      onChange={(e) => setSplitNewPen({ ...splitNewPen, nib_size: e.target.value })}
+                      className="w-full rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2.5 py-1.5"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-zinc-500 mb-0.5">Nib Material</label>
+                    <input
+                      value={splitNewPen.nib_material}
+                      onChange={(e) =>
+                        setSplitNewPen({ ...splitNewPen, nib_material: e.target.value })
+                      }
+                      className="w-full rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2.5 py-1.5"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] text-zinc-500 mb-0.5">Mechanism</label>
+                    <input
+                      value={splitNewPen.filling_mechanism}
+                      onChange={(e) =>
+                        setSplitNewPen({ ...splitNewPen, filling_mechanism: e.target.value })
+                      }
+                      className="w-full rounded border border-zinc-300 dark:border-zinc-700 bg-white dark:bg-zinc-900 px-2.5 py-1.5"
+                    />
+                  </div>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="relative">
+                    <Search className="w-3.5 h-3.5 text-zinc-400 absolute left-3 top-1/2 -translate-y-1/2" />
+                    <input
+                      type="text"
+                      value={splitSearch}
+                      onChange={(e) => setSplitSearch(e.target.value)}
+                      placeholder="Filter destination pen..."
+                      className="w-full pl-8 pr-3 py-1.5 rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950"
+                    />
+                  </div>
+                  <div className="max-h-40 overflow-y-auto divide-y divide-zinc-100 dark:divide-zinc-800 rounded-lg border border-zinc-200 dark:border-zinc-800">
+                    {filteredSplitPens.map((p) => (
+                      <label
+                        key={p.id}
+                        className={`flex items-center justify-between px-3 py-2 cursor-pointer ${
+                          splitTargetPenId === p.id
+                            ? 'bg-emerald-50/70 dark:bg-emerald-950/30'
+                            : 'hover:bg-zinc-50 dark:hover:bg-zinc-800/40'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="radio"
+                            name="splitTargetPen"
+                            checked={splitTargetPenId === p.id}
+                            onChange={() => setSplitTargetPenId(p.id)}
+                          />
+                          <span>
+                            <strong>
+                              {p.brand} {p.model}
+                            </strong>{' '}
+                            {p.color_variant ? `(${p.color_variant})` : ''} · {p.nib_size}
+                          </span>
+                        </div>
+                        <span className="font-mono-num text-zinc-400">{p.times_inked} fills</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between pt-2">
+              <span className="text-zinc-500">
+                <strong>{selectedSessionIds.length}</strong> of {sessions.length} session(s)
+                selected
+              </span>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setShowSplitModal(false)}
+                  className="px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={
+                    splittingBusy ||
+                    selectedSessionIds.length === 0 ||
+                    (splitDestMode === 'existing_pen' && !splitTargetPenId)
+                  }
+                  className="px-4 py-1.5 rounded-lg bg-emerald-600 text-white font-medium hover:bg-emerald-500 disabled:opacity-45"
+                >
+                  {splittingBusy
+                    ? 'Splitting...'
+                    : `Split ${selectedSessionIds.length} Session${selectedSessionIds.length === 1 ? '' : 's'}`}
+                </button>
+              </div>
             </div>
           </form>
         </div>
@@ -718,7 +1351,7 @@ export const PenDetailView: React.FC<Props> = ({
                   onChange={(e) =>
                     setEditingSession({ ...editingSession, session_notes: e.target.value })
                   }
-                  className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-2.5 py-1.5"
+                  className="w-full rounded-lg border border-zinc-300 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-950 px-2 py-1.5"
                 />
               </div>
             </div>

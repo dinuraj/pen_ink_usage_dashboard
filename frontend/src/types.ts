@@ -124,12 +124,26 @@ export interface PenPhotoOut {
   created_at: string;
 }
 
+export interface PenMergeRecordOut {
+  id: number;
+  target_pen_id: number;
+  source_label: string;
+  source_brand: string;
+  source_model: string;
+  source_color_variant: string;
+  source_nib_size: string;
+  moved_sessions_count: number;
+  moved_samples_count: number;
+  created_at: string;
+}
+
 export interface PenDetailResponse {
   pen: PenOut;
   photos: PenPhotoOut[];
   favorite_ink: { id: number; name: string; hex_color: string; count: number } | null;
   sessions: SessionOut[];
   samples: WritingSampleOut[];
+  merge_history: PenMergeRecordOut[];
 }
 
 export interface InkDetailResponse {

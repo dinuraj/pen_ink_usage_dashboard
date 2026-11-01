@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+import json
 import re
 from datetime import date
 from difflib import SequenceMatcher
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from ..models import Ink, Pen, UsageSession
 
@@ -43,8 +44,8 @@ def match_pen(
     nib_size: str = "",
     raw_text: str = "",
 ) -> tuple[int | None, float]:
-    """Find best matching Pen ID, accounting for nib size and color variant when duplicates exist."""
-    pens = db.query(Pen).all()
+    """Find best matching Pen ID, accounting for nib size, color variant, and merged aliases."""
+    pens = db.query(Pen).options(joinedload(Pen.merge_records)).all()
     if not pens:
         return None, 0.0
 
@@ -56,29 +57,47 @@ def match_pen(
     best_score = 0.0
 
     for pen in pens:
-        candidate_base = f"{pen.brand} {pen.model}"
-        score = _token_similarity(query_base, candidate_base)
-        if raw_text:
-            full_target = f"{pen.brand} {pen.model} {pen.color_variant} {pen.nib_size}"
-            score = max(score, _token_similarity(raw_text, full_target))
+        candidate_variants = [
+            (pen.brand, pen.model, pen.color_variant, pen.nib_size),
+        ]
+        for mr in pen.merge_records:
+            try:
+                snap = json.loads(mr.source_snapshot_json or "{}")
+                candidate_variants.append(
+                    (
+                        snap.get("brand", ""),
+                        snap.get("model", ""),
+                        snap.get("color_variant", ""),
+                        snap.get("nib_size", ""),
+                    )
+                )
+            except Exception:
+                pass
 
-        # Distinguish multiple pens of the same model via color and nib!
-        if color_norm and pen.color_variant:
-            color_sim = _token_similarity(color_norm, pen.color_variant)
-            score = (0.78 * score) + (0.22 * color_sim)
-        elif color_norm and not pen.color_variant:
-            score -= 0.05
+        for c_brand, c_model, c_color, c_nib in candidate_variants:
+            candidate_base = f"{c_brand} {c_model}".strip()
+            score = _token_similarity(query_base, candidate_base)
+            if raw_text:
+                full_target = f"{c_brand} {c_model} {c_color} {c_nib}"
+                score = max(score, _token_similarity(raw_text, full_target))
 
-        if nib_norm and pen.nib_size:
-            pen_nib_norm = _normalize(pen.nib_size)
-            if nib_norm == pen_nib_norm or nib_norm in pen_nib_norm.split():
-                score = min(1.0, score + 0.08)
-            else:
-                score -= 0.08
+            # Distinguish multiple pens of the same model via color and nib!
+            if color_norm and c_color:
+                color_sim = _token_similarity(color_norm, c_color)
+                score = (0.78 * score) + (0.22 * color_sim)
+            elif color_norm and not c_color:
+                score -= 0.05
 
-        if score > best_score:
-            best_score = score
-            best_id = pen.id
+            if nib_norm and c_nib:
+                pen_nib_norm = _normalize(c_nib)
+                if nib_norm == pen_nib_norm or nib_norm in pen_nib_norm.split():
+                    score = min(1.0, score + 0.08)
+                else:
+                    score -= 0.08
+
+            if score > best_score:
+                best_score = score
+                best_id = pen.id
 
     if best_score >= 0.62:
         return best_id, round(best_score, 3)

@@ -37,7 +37,6 @@ type InkSortKey =
   | 'remaining_level'
   | 'total_fills'
   | 'total_days_inked'
-  | 'sample_count'
   | 'has_review';
 
 const INK_SORT_OPTIONS: Array<{ key: InkSortKey; label: string; defaultDir: 'asc' | 'desc' }> = [
@@ -50,7 +49,6 @@ const INK_SORT_OPTIONS: Array<{ key: InkSortKey; label: string; defaultDir: 'asc
   { key: 'remaining_level', label: 'Remaining Level', defaultDir: 'desc' },
   { key: 'total_fills', label: 'Fills', defaultDir: 'desc' },
   { key: 'total_days_inked', label: 'Total Days', defaultDir: 'desc' },
-  { key: 'sample_count', label: 'Samples', defaultDir: 'desc' },
   { key: 'has_review', label: 'Review Link', defaultDir: 'desc' },
 ];
 
@@ -248,8 +246,6 @@ export const InksView: React.FC<Props> = ({ inks, onRefresh, onSelectInk }) => {
         }
         case 'total_days_inked':
           return mult * (a.total_days_inked - b.total_days_inked) || tieBreak();
-        case 'sample_count':
-          return mult * (a.sample_count - b.sample_count) || tieBreak();
         case 'has_review': {
           const hasA = Boolean(a.mountain_of_ink_url.trim()) ? 1 : 0;
           const hasB = Boolean(b.mountain_of_ink_url.trim()) ? 1 : 0;
@@ -567,14 +563,6 @@ export const InksView: React.FC<Props> = ({ inks, onRefresh, onSelectInk }) => {
                     align="right"
                   />
                   <SortableTh
-                    label="Samples"
-                    sortKey="sample_count"
-                    activeKey={sortKey}
-                    direction={sortDir}
-                    onSort={handleSort}
-                    align="right"
-                  />
-                  <SortableTh
                     label="Review Link"
                     sortKey="has_review"
                     activeKey={sortKey}
@@ -669,9 +657,6 @@ export const InksView: React.FC<Props> = ({ inks, onRefresh, onSelectInk }) => {
                       <td className="py-2.5 px-3 text-right font-mono-num text-zinc-600 dark:text-zinc-400">
                         {ink.total_days_inked}d
                       </td>
-                      <td className="py-2.5 px-3 text-right font-mono-num text-zinc-500">
-                        {ink.sample_count}
-                      </td>
                       <td
                         className="py-2.5 pl-3 pr-4 text-right"
                         onClick={(e) => e.stopPropagation()}
@@ -695,7 +680,7 @@ export const InksView: React.FC<Props> = ({ inks, onRefresh, onSelectInk }) => {
                 })}
                 {sortedAndFiltered.length === 0 && (
                   <tr>
-                    <td colSpan={11} className="py-10 text-center text-zinc-400">
+                    <td colSpan={10} className="py-10 text-center text-zinc-400">
                       No inks match the selected filters.
                     </td>
                   </tr>
@@ -756,7 +741,7 @@ export const InksView: React.FC<Props> = ({ inks, onRefresh, onSelectInk }) => {
                 </div>
                 <div className="flex items-center justify-between pt-2 border-t border-zinc-100 dark:border-zinc-800 text-xs text-zinc-500 font-mono-num">
                   <span>{ink.times_inked + ink.total_refills} fills</span>
-                  <span>{ink.sample_count} samples</span>
+                  <span>{ink.total_days_inked}d total</span>
                 </div>
               </div>
             </div>

@@ -8,8 +8,10 @@ __pycache__/
 frontend/node_modules/
 frontend/dist/
 
-# Local Personal Database, Media, Exports & Secrets
-data/
+# SQLite runtime lock/WAL files, Exports & Local Secrets
+data/*.db-wal
+data/*.db-shm
+data/*.db-journal
 exports/
 .env
 backend/.env

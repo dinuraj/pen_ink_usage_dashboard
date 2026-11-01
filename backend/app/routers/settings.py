@@ -14,7 +14,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from ..config import DATA_DIR, GEMINI_MODEL, STORAGE_BACKEND, UPLOADS_DIR
+from ..config import BASE_DIR, DATA_DIR, GEMINI_MODEL, STORAGE_BACKEND, UPLOADS_DIR
 from ..database import get_db
 from ..models import AppSetting, Ink, LifecycleEvent, Pen, ScanBatch, UsageSession, WritingSample
 from ..services.pdf_vision import get_gemini_api_key
@@ -53,15 +53,34 @@ def get_settings_status(db: Session = Depends(get_db)) -> dict[str, Any]:
     }
 
 
+def _write_key_to_dotenv(key_value: str) -> None:
+    """Persist GEMINI_API_KEY in the gitignored root .env file (never inside pen_ink.db)."""
+    env_path = BASE_DIR / ".env"
+    lines: list[str] = []
+    if env_path.exists():
+        for raw_line in env_path.read_text(encoding="utf-8").splitlines():
+            if not raw_line.strip().startswith("GEMINI_API_KEY="):
+                lines.append(raw_line)
+    if key_value:
+        lines.append(f"GEMINI_API_KEY={key_value}")
+    content = ("\n".join(lines).strip() + "\n") if lines else ""
+    if content:
+        env_path.write_text(content, encoding="utf-8")
+    elif env_path.exists():
+        env_path.unlink()
+
+
 @router.put("")
 def update_settings(payload: SettingsUpdate, db: Session = Depends(get_db)) -> dict[str, Any]:
     if payload.gemini_api_key is not None:
-        row = db.query(AppSetting).filter(AppSetting.key == "gemini_api_key").first()
-        if not row:
-            row = AppSetting(key="gemini_api_key", value=payload.gemini_api_key.strip())
-            db.add(row)
+        cleaned = payload.gemini_api_key.strip()
+        _write_key_to_dotenv(cleaned)
+        if cleaned:
+            os.environ["GEMINI_API_KEY"] = cleaned
         else:
-            row.value = payload.gemini_api_key.strip()
+            os.environ.pop("GEMINI_API_KEY", None)
+        # Ensure no API key is ever stored inside pen_ink.db so the DB is safe to commit to Git
+        db.query(AppSetting).filter(AppSetting.key == "gemini_api_key").delete()
         db.commit()
     return get_settings_status(db)
 

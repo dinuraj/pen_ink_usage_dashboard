@@ -86,10 +86,20 @@ export const SettingsView: React.FC<Props> = ({ settings, onRefreshAll }) => {
         </div>
 
         <p className="text-xs text-zinc-500 leading-relaxed">
-          Used exclusively when you click <strong>Re-Run Vision Extraction</strong> on uploaded
-          multi-page notebook PDFs ({settings.gemini_model}). Stored locally in your personal SQLite
-          database (or read from <code className="font-mono-num">GEMINI_API_KEY</code> in{' '}
-          <code className="font-mono-num">.env</code>).
+          Used exclusively when you upload new notebook scans or click{' '}
+          <strong>Re-Run Vision Extraction</strong> ({settings.gemini_model}). Saved locally to your
+          gitignored <code className="font-mono-num">.env</code> file —{' '}
+          <strong>never stored inside <code className="font-mono-num">pen_ink.db</code></strong> so
+          your database stays safe to commit to GitHub. Get a free API key at{' '}
+          <a
+            href="https://aistudio.google.com/apikey"
+            target="_blank"
+            rel="noreferrer"
+            className="text-indigo-600 dark:text-indigo-400 underline font-medium"
+          >
+            Google AI Studio
+          </a>
+          .
         </p>
 
         <div className="flex gap-2">

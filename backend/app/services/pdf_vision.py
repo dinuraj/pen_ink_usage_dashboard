@@ -16,18 +16,23 @@ from PIL import Image
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from ..config import GEMINI_MODEL
-from ..models import AppSetting, Ink, Pen, ScanPage
+from dotenv import dotenv_values
+
+from ..config import BASE_DIR, GEMINI_MODEL
+from ..models import Ink, Pen, ScanPage
 from ..schemas import CropBox, ExtractedEntryCandidate
 from ..storage import storage
 from .matcher import is_duplicate_session, match_ink, match_pen
 
 
-def get_gemini_api_key(db: Session) -> str:
-    """Resolve Gemini API key from DB settings first, then environment variable."""
-    row = db.query(AppSetting).filter(AppSetting.key == "gemini_api_key").first()
-    if row and row.value.strip():
-        return row.value.strip()
+def get_gemini_api_key(db: Session | None = None) -> str:
+    """Resolve Gemini API key from environment or gitignored .env files (never stored in DB)."""
+    for env_file in (BASE_DIR / ".env", BASE_DIR / "backend" / ".env"):
+        if env_file.exists():
+            vals = dotenv_values(env_file)
+            file_key = (vals.get("GEMINI_API_KEY") or "").strip()
+            if file_key:
+                return file_key
     return os.getenv("GEMINI_API_KEY", "").strip()
 
 

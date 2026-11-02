@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import colorsys
+import gc
 import io
 import json
 import os
 import uuid
+
 from datetime import date
 from pathlib import Path
 from typing import Any
@@ -51,11 +53,17 @@ def render_document_pages(file_bytes: bytes, filename: str, scale: float = 2.2) 
             for idx in range(n_pages):
                 page = pdf[idx]
                 bitmap = page.render(scale=scale)
-                pil_img = bitmap.to_pil().convert("RGB")
-                buf = io.BytesIO()
-                pil_img.save(buf, format="WEBP", quality=90)
-                results.append((buf.getvalue(), pil_img.width, pil_img.height, ""))
-                page.close()
+                try:
+                    pil_img = bitmap.to_pil().convert("RGB")
+                    buf = io.BytesIO()
+                    pil_img.save(buf, format="WEBP", quality=90)
+                    results.append((buf.getvalue(), pil_img.width, pil_img.height, ""))
+                    del pil_img
+                finally:
+                    bitmap.close()
+                    page.close()
+            gc.collect()
+
         finally:
             pdf.close()
     else:

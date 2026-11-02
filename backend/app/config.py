@@ -19,8 +19,41 @@ for sub in ("pdfs", "pages", "samples", "pens", "swatches", "demo"):
     (UPLOADS_DIR / sub).mkdir(parents=True, exist_ok=True)
 
 DEFAULT_SQLITE_URL = f"sqlite:///{(DATA_DIR / 'pen_ink.db').as_posix()}"
-DATABASE_URL = os.getenv("DATABASE_URL", DEFAULT_SQLITE_URL)
+raw_db_url = os.getenv("DATABASE_URL", DEFAULT_SQLITE_URL).strip()
 
-STORAGE_BACKEND = os.getenv("STORAGE_BACKEND", "local")  # "local" or "s3"
+# Normalize PostgreSQL URL for SQLAlchemy (support psycopg in Linux Docker, pg8000 fallback)
+if raw_db_url.startswith("postgres://") or raw_db_url.startswith("postgresql://"):
+    clean_url = raw_db_url
+    if clean_url.startswith("postgres://"):
+        clean_url = "postgresql://" + clean_url[len("postgres://") :]
+    if not clean_url.startswith("postgresql+"):
+        try:
+            import psycopg  # noqa: F401
+            driver = "psycopg"
+        except ImportError:
+            driver = "pg8000"
+        clean_url = clean_url.replace("postgresql://", f"postgresql+{driver}://", 1)
+    DATABASE_URL = clean_url
+else:
+    DATABASE_URL = raw_db_url
+
+
+# Storage Configuration (local or s3)
+STORAGE_BACKEND = os.getenv("STORAGE_BACKEND", "local").lower().strip()  # "local" or "s3"
+S3_ENDPOINT_URL = os.getenv("S3_ENDPOINT_URL", "").strip()
+S3_ACCESS_KEY_ID = os.getenv("S3_ACCESS_KEY_ID", "").strip()
+S3_SECRET_ACCESS_KEY = os.getenv("S3_SECRET_ACCESS_KEY", "").strip()
+S3_BUCKET = os.getenv("S3_BUCKET", "pen-ink-uploads").strip()
+S3_REGION = os.getenv("S3_REGION", "us-east-1").strip()
+S3_PUBLIC_URL_PREFIX = os.getenv("S3_PUBLIC_URL_PREFIX", "").strip()
+
+# Local disk cache for temporary S3 reads/crops
+CACHE_DIR = DATA_DIR / "cache"
+CACHE_DIR.mkdir(parents=True, exist_ok=True)
+
+# Access Protection (leave empty for unauthenticated local development)
+APP_ACCESS_TOKEN = os.getenv("APP_ACCESS_TOKEN", "").strip()
+
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 FRONTEND_DIST_DIR = BASE_DIR / "frontend" / "dist"
+

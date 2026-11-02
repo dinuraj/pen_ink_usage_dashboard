@@ -359,12 +359,12 @@ export const PenDetailView: React.FC<Props> = ({
       {/* Hero Card */}
       <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden">
         <div className="grid grid-cols-1 md:grid-cols-12">
-          <div className="md:col-span-4 bg-zinc-100 dark:bg-zinc-950 relative min-h-[190px] flex items-center justify-center border-b md:border-b-0 md:border-r border-zinc-200 dark:border-zinc-800">
+          <div className="md:col-span-4 bg-zinc-100 dark:bg-zinc-950 relative min-h-[190px] flex items-center justify-center border-b md:border-b-0 md:border-r border-zinc-200 dark:border-zinc-800 p-2">
             {pen.primary_photo_url ? (
               <img
                 src={pen.primary_photo_url}
                 alt={`${pen.brand} ${pen.model}`}
-                className="w-full h-full max-h-56 object-cover"
+                className="w-full h-full max-h-56 object-contain"
               />
             ) : (
               <span className="text-xs text-zinc-400">No pen photo yet</span>

@@ -773,11 +773,11 @@ export const PensView: React.FC<Props> = ({ pens, onRefresh, onSelectPen }) => {
               className="cursor-pointer group rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden hover:border-indigo-400 transition"
             >
               {p.primary_photo_url && (
-                <div className="h-36 bg-zinc-100 dark:bg-zinc-950 overflow-hidden border-b border-zinc-100 dark:border-zinc-800">
+                <div className="h-36 bg-zinc-100 dark:bg-zinc-950 overflow-hidden border-b border-zinc-100 dark:border-zinc-800 p-1 flex items-center justify-center">
                   <img
                     src={p.primary_photo_url}
                     alt={`${p.brand} ${p.model}`}
-                    className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform"
+                    className="w-full h-full object-contain group-hover:scale-[1.02] transition-transform"
                   />
                 </div>
               )}

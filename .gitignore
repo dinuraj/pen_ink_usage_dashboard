@@ -15,5 +15,6 @@ data/*.db-journal
 data/cache/
 exports/
 
-.env
-backend/.env
+.env*
+backend/.env*
+

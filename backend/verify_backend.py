@@ -67,12 +67,12 @@ def run_checks() -> None:
         )
         assert after_refill.refill_count >= 1
 
-        # Reset clean demo state after verification
-        seed_demo_database(db, reset_existing=True)
+        # Do NOT reset or wipe user database
         samples = list_writing_samples(db=db)
         settings = get_settings_status(db=db)
         print(f"6. Verified {len(samples)} samples & settings: {settings['counts']}", flush=True)
         print("ALL BACKEND CHECKS PASSED!", flush=True)
+
     finally:
         db.close()
 

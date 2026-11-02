@@ -143,3 +143,4 @@ def logout(response: Response) -> AuthStatusResponse:
     response.delete_cookie(key=COOKIE_NAME)
     auth_enabled = bool(APP_ACCESS_TOKEN)
     return AuthStatusResponse(is_admin=not auth_enabled, auth_enabled=auth_enabled)
+

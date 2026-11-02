@@ -97,3 +97,4 @@ def create_database_backup(trigger: str = "manual") -> dict:
 def list_backups() -> list[dict]:
     """Return all available backups sorted from newest to oldest."""
     return load_manifest()
+

@@ -432,11 +432,10 @@ export const PensView: React.FC<Props> = ({ pens, onRefresh, onSelectPen }) => {
               value={nameQuery}
               onChange={(e) => setNameQuery(e.target.value)}
               placeholder="Filter pen name or color..."
-              className={`w-full pl-8 pr-7 py-1.5 text-xs rounded-lg border focus:outline-none ${
-                nameQuery
+              className={`w-full pl-8 pr-7 py-1.5 text-xs rounded-lg border focus:outline-none ${nameQuery
                   ? 'border-indigo-300 dark:border-indigo-700 bg-indigo-50/40 dark:bg-indigo-950/30'
                   : 'border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950'
-              }`}
+                }`}
             />
             {nameQuery && (
               <button
@@ -474,11 +473,10 @@ export const PensView: React.FC<Props> = ({ pens, onRefresh, onSelectPen }) => {
               <button
                 key={val}
                 onClick={() => setStatusFilter(val)}
-                className={`px-2.5 py-1 rounded-md font-medium transition ${
-                  statusFilter === val
+                className={`px-2.5 py-1 rounded-md font-medium transition ${statusFilter === val
                     ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-2xs'
                     : 'text-zinc-600 dark:text-zinc-400'
-                }`}
+                  }`}
               >
                 {label}
               </button>
@@ -560,18 +558,16 @@ export const PensView: React.FC<Props> = ({ pens, onRefresh, onSelectPen }) => {
           <div className="flex items-center gap-1 rounded-lg border border-zinc-200 dark:border-zinc-800 p-0.5">
             <button
               onClick={() => setViewMode('table')}
-              className={`p-1.5 rounded ${
-                viewMode === 'table' ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900' : 'text-zinc-500'
-              }`}
+              className={`p-1.5 rounded ${viewMode === 'table' ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900' : 'text-zinc-500'
+                }`}
               title="Compact Table"
             >
               <List className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={() => setViewMode('grid')}
-              className={`p-1.5 rounded ${
-                viewMode === 'grid' ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900' : 'text-zinc-500'
-              }`}
+              className={`p-1.5 rounded ${viewMode === 'grid' ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900' : 'text-zinc-500'
+                }`}
               title="Photo Cards"
             >
               <LayoutGrid className="w-3.5 h-3.5" />
@@ -918,18 +914,16 @@ export const PensView: React.FC<Props> = ({ pens, onRefresh, onSelectPen }) => {
                             prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag],
                           )
                         }
-                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition ${
-                          selected
+                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition ${selected
                             ? 'border-indigo-500 bg-indigo-50/70 dark:bg-indigo-950/40 ring-1 ring-indigo-500/30'
                             : 'border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/60'
-                        }`}
+                          }`}
                       >
                         <span
-                          className={`w-3.5 h-3.5 rounded flex items-center justify-center border ${
-                            selected
+                          className={`w-3.5 h-3.5 rounded flex items-center justify-center border ${selected
                               ? 'bg-indigo-600 border-indigo-600 text-white'
                               : 'border-zinc-300 dark:border-zinc-700'
-                          }`}
+                            }`}
                         >
                           {selected && <Check className="w-2.5 h-2.5" />}
                         </span>

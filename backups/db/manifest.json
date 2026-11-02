@@ -1,5 +1,31 @@
 [
   {
+    "version": 10,
+    "filename": "pen_ink_20261102_181846_v10.db",
+    "relative_path": "backups/db/pen_ink_20261102_181846_v10.db",
+    "timestamp": "2026-11-02T18:18:46.760818",
+    "created_at_formatted": "Nov 02, 2026 06:18 PM",
+    "trigger": "post_image_key_fix",
+    "pens_count": 134,
+    "inks_count": 108,
+    "sessions_count": 268,
+    "samples_count": 268,
+    "size_bytes": 430080
+  },
+  {
+    "version": 9,
+    "filename": "pen_ink_20261102_181846_v9.db",
+    "relative_path": "backups/db/pen_ink_20261102_181846_v9.db",
+    "timestamp": "2026-11-02T18:18:46.737986",
+    "created_at_formatted": "Nov 02, 2026 06:18 PM",
+    "trigger": "pre_image_key_fix",
+    "pens_count": 134,
+    "inks_count": 108,
+    "sessions_count": 268,
+    "samples_count": 268,
+    "size_bytes": 430080
+  },
+  {
     "version": 8,
     "filename": "pen_ink_20261102_180020_v8.db",
     "relative_path": "backups/db/pen_ink_20261102_180020_v8.db",

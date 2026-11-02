@@ -12,11 +12,13 @@ from fastapi.staticfiles import StaticFiles
 
 from sqlalchemy import text
 
+from .auth import is_authenticated_admin, router as auth_router
 from .config import APP_ACCESS_TOKEN, FRONTEND_DIST_DIR, STORAGE_BACKEND, UPLOADS_DIR
 from .database import Base, SessionLocal, engine, is_sqlite
 from .models import Pen
-from .routers import analytics, inks, notebooks, pens, samples, scans, sessions, settings
+from .routers import analytics, inks, notebooks, pens, samples, scans, sessions, settings, sync
 from .storage import storage
+
 
 
 
@@ -69,55 +71,43 @@ app.add_middleware(
 
 @app.middleware("http")
 async def access_token_middleware(request: Request, call_next):  # noqa: ANN001
-    """Protect app with optional APP_ACCESS_TOKEN passcode in cloud deployments."""
+    """Smart access middleware:
+
+    - Public Read-Only: All GET, HEAD, OPTIONS requests (browsing pens, inks, stats, samples) are public!
+    - Mutation Protection: POST, PUT, PATCH, DELETE require valid Admin session.
+    """
     if not APP_ACCESS_TOKEN:
         return await call_next(request)
 
     path = request.url.path
+
+    # Always exempt static bundle assets and health checks
     if path in ("/api/health", "/healthz") or path.startswith("/assets/"):
         return await call_next(request)
 
-    provided = None
-    auth = request.headers.get("Authorization")
-    if auth:
-        if auth.startswith("Bearer "):
-            provided = auth[7:].strip()
-        elif auth.startswith("Basic "):
-            try:
-                decoded = base64.b64decode(auth[6:].strip()).decode("utf-8")
-                parts = decoded.split(":", 1)
-                provided = parts[1] if len(parts) > 1 and parts[1] else parts[0]
-            except Exception:
-                pass
+    # Safe read-only HTTP methods are accessible to all visitors
+    if request.method in ("GET", "HEAD", "OPTIONS"):
+        return await call_next(request)
 
-    if not provided:
-        provided = request.headers.get("X-App-Token")
-    if not provided:
-        provided = request.cookies.get("app_access_token")
-    if not provided:
-        provided = request.query_params.get("token")
+    # Auth endpoints (login/logout/status) must be accessible
+    if path.startswith("/api/auth/"):
+        return await call_next(request)
 
-    if provided == APP_ACCESS_TOKEN:
-        response = await call_next(request)
-        if request.cookies.get("app_access_token") != APP_ACCESS_TOKEN:
-            response.set_cookie(
-                key="app_access_token",
-                value=APP_ACCESS_TOKEN,
-                httponly=True,
-                samesite="lax",
-                max_age=60 * 60 * 24 * 30,
-            )
-        return response
+    # State-changing operations (POST / PUT / PATCH / DELETE) require Admin authorization
+    if is_authenticated_admin(request):
+        return await call_next(request)
 
+    import json
     return Response(
         status_code=401,
-        content="Unauthorized: Access passcode required for Atelier Ink & Nib.",
-        headers={"WWW-Authenticate": 'Basic realm="Atelier Ink & Nib"'},
-        media_type="text/plain",
+        content=json.dumps({"detail": "Admin passcode required to modify data or perform actions."}),
+        media_type="application/json",
     )
 
 
 # Register API routers
+app.include_router(auth_router)
+app.include_router(sync.router)
 app.include_router(analytics.router)
 app.include_router(pens.router)
 app.include_router(inks.router)
@@ -126,6 +116,7 @@ app.include_router(sessions.router)
 app.include_router(scans.router)
 app.include_router(samples.router)
 app.include_router(settings.router)
+
 
 # Serve media uploads (StaticFiles in local mode, S3 redirect/stream in S3 mode)
 if STORAGE_BACKEND == "s3":

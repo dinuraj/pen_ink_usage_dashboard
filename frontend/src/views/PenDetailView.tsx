@@ -17,6 +17,7 @@ import {
   X,
 } from 'lucide-react';
 import { api } from '../api';
+import { useAuth } from '../AuthContext';
 import type { InkOut, PenDetailResponse, PenOut, SessionOut, WritingSampleOut } from '../types';
 import { PEN_TAG_OPTIONS, PenTagBadge, StarRating } from '../components/FilterSortControls';
 import { MarkdownNotes } from '../components/MarkdownNotes';
@@ -44,6 +45,7 @@ export const PenDetailView: React.FC<Props> = ({
   onOpenScanPage,
   onGlobalRefresh,
 }) => {
+  const { isAdmin } = useAuth();
   const [detail, setDetail] = useState<PenDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [lifecycleMode, setLifecycleMode] = useState<'refill' | 'clean' | null>(null);
@@ -286,42 +288,44 @@ export const PenDetailView: React.FC<Props> = ({
           <ArrowLeft className="w-3.5 h-3.5" />
           Back to Pen Cabinet
         </button>
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            onClick={() => setEditingSpecs((v) => !v)}
-            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-md border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-          >
-            <Edit3 className="w-3.5 h-3.5" />
-            Edit Specs
-          </button>
-          {otherPens.length > 0 && (
+        {isAdmin && (
+          <div className="flex flex-wrap items-center gap-2">
             <button
-              onClick={openMergeModal}
+              onClick={() => setEditingSpecs((v) => !v)}
               className="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-md border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-              title="Merge duplicate pen names together"
             >
-              <GitMerge className="w-3.5 h-3.5 text-indigo-500" />
-              Merge Duplicate
+              <Edit3 className="w-3.5 h-3.5" />
+              Edit Specs
             </button>
-          )}
-          {sessions.length > 0 && (
+            {otherPens.length > 0 && (
+              <button
+                onClick={openMergeModal}
+                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-md border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                title="Merge duplicate pen names together"
+              >
+                <GitMerge className="w-3.5 h-3.5 text-indigo-500" />
+                Merge Duplicate
+              </button>
+            )}
+            {sessions.length > 0 && (
+              <button
+                onClick={() => openSplitModal()}
+                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-md border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                title="Split selected ink-up sessions out into a separate pen"
+              >
+                <GitFork className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                Split Sessions
+              </button>
+            )}
             <button
-              onClick={() => openSplitModal()}
-              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-md border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-              title="Split selected ink-up sessions out into a separate pen"
+              onClick={handleDelete}
+              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-md border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30"
             >
-              <GitFork className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
-              Split Sessions
+              <Trash2 className="w-3.5 h-3.5" />
+              Delete
             </button>
-          )}
-          <button
-            onClick={handleDelete}
-            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-md border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            Delete
-          </button>
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Confirmation / Split / Undo Banner */}
@@ -449,33 +453,41 @@ export const PenDetailView: React.FC<Props> = ({
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-zinc-500 font-medium">Pen Tags:</span>
                 <div className="flex flex-wrap items-center gap-1.5">
-                  {PEN_TAG_OPTIONS.map((tag) => {
-                    const active = (pen.tags ?? []).includes(tag);
-                    return (
-                      <button
-                        key={tag}
-                        type="button"
-                        onClick={() => void handleTogglePenTag(tag)}
-                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition ${
-                          active
-                            ? 'border-indigo-500 bg-indigo-50/70 dark:bg-indigo-950/40 ring-1 ring-indigo-500/20'
-                            : 'border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/60 opacity-65 hover:opacity-100'
-                        }`}
-                        title={`Toggle "${tag}" tag on this pen`}
-                      >
-                        <span
-                          className={`w-3.5 h-3.5 rounded flex items-center justify-center border ${
+                  {isAdmin ? (
+                    PEN_TAG_OPTIONS.map((tag) => {
+                      const active = (pen.tags ?? []).includes(tag);
+                      return (
+                        <button
+                          key={tag}
+                          type="button"
+                          onClick={() => void handleTogglePenTag(tag)}
+                          className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border transition ${
                             active
-                              ? 'bg-indigo-600 border-indigo-600 text-white'
-                              : 'border-zinc-300 dark:border-zinc-700'
+                              ? 'border-indigo-500 bg-indigo-50/70 dark:bg-indigo-950/40 ring-1 ring-indigo-500/20'
+                              : 'border-zinc-200 dark:border-zinc-800 hover:bg-zinc-50 dark:hover:bg-zinc-800/60 opacity-65 hover:opacity-100'
                           }`}
+                          title={`Toggle "${tag}" tag on this pen`}
                         >
-                          {active && <Check className="w-2.5 h-2.5" />}
-                        </span>
-                        <PenTagBadge tag={tag} />
-                      </button>
-                    );
-                  })}
+                          <span
+                            className={`w-3.5 h-3.5 rounded flex items-center justify-center border ${
+                              active
+                                ? 'bg-indigo-600 border-indigo-600 text-white'
+                                : 'border-zinc-300 dark:border-zinc-700'
+                            }`}
+                          >
+                            {active && <Check className="w-2.5 h-2.5" />}
+                          </span>
+                          <PenTagBadge tag={tag} />
+                        </button>
+                      );
+                    })
+                  ) : (
+                    (pen.tags && pen.tags.length > 0) ? (
+                      pen.tags.map((tag) => <PenTagBadge key={tag} tag={tag} />)
+                    ) : (
+                      <span className="text-zinc-400">No tags</span>
+                    )
+                  )}
                 </div>
               </div>
 
@@ -483,7 +495,7 @@ export const PenDetailView: React.FC<Props> = ({
                 <span className="text-zinc-500 font-medium">Rating:</span>
                 <StarRating
                   value={pen.rating}
-                  onChange={handleRatingChange}
+                  onChange={isAdmin ? handleRatingChange : undefined}
                   size="md"
                   showLabel
                 />
@@ -513,22 +525,24 @@ export const PenDetailView: React.FC<Props> = ({
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 text-xs">
-                    <button
-                      onClick={() => setLifecycleMode('refill')}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 font-medium hover:bg-zinc-50 dark:hover:bg-zinc-800"
-                    >
-                      <RefreshCw className="w-3.5 h-3.5 text-indigo-500" />
-                      Refill Pen
-                    </button>
-                    <button
-                      onClick={() => setLifecycleMode('clean')}
-                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 font-medium"
-                    >
-                      <Sparkles className="w-3.5 h-3.5" />
-                      Mark Cleaned
-                    </button>
-                  </div>
+                  {isAdmin && (
+                    <div className="flex items-center gap-2 text-xs">
+                      <button
+                        onClick={() => setLifecycleMode('refill')}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 font-medium hover:bg-zinc-50 dark:hover:bg-zinc-800"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5 text-indigo-500" />
+                        Refill Pen
+                      </button>
+                      <button
+                        onClick={() => setLifecycleMode('clean')}
+                        className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 font-medium"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" />
+                        Mark Cleaned
+                      </button>
+                    </div>
+                  )}
                 </>
               ) : (
                 <>
@@ -536,13 +550,15 @@ export const PenDetailView: React.FC<Props> = ({
                     Currently clean and stored in cabinet.{' '}
                     {pen.last_cleaned_date && `Last cleaned ${pen.last_cleaned_date}.`}
                   </span>
-                  <button
-                    onClick={() => setShowInkUpModal(true)}
-                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-medium hover:bg-indigo-500"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    Ink Up This Pen
-                  </button>
+                  {isAdmin && (
+                    <button
+                      onClick={() => setShowInkUpModal(true)}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-medium hover:bg-indigo-500"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      Ink Up This Pen
+                    </button>
+                  )}
                 </>
               )}
             </div>
@@ -632,6 +648,7 @@ export const PenDetailView: React.FC<Props> = ({
       {/* Standalone Custom Markdown Notes */}
       <MarkdownNotes
         title="Pen Notes & Nib Setup"
+        editable={isAdmin}
         placeholder="Record standalone notes about this pen (nib feel, tuning history, converter type, favorite papers)..."
         value={pen.custom_notes}
         onSave={async (next) => {
@@ -702,7 +719,7 @@ export const PenDetailView: React.FC<Props> = ({
               Select checkboxes on any fill rows to split them out into a separate pen record
             </p>
           </div>
-          {sessions.length > 0 && (
+          {isAdmin && sessions.length > 0 && (
             <button
               type="button"
               onClick={() => openSplitModal()}
@@ -723,13 +740,13 @@ export const PenDetailView: React.FC<Props> = ({
           <table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50/70 dark:bg-zinc-950/40 text-[11px] font-medium uppercase tracking-wider text-zinc-500">
-                <th className="py-2.5 pl-4 pr-2 w-8">Split</th>
-                <th className="py-2.5 px-3">Ink Paired</th>
+                {isAdmin && <th className="py-2.5 pl-4 pr-2 w-8">Split</th>}
+                <th className={`py-2.5 px-3 ${!isAdmin ? 'pl-4' : ''}`}>Ink Paired</th>
                 <th className="py-2.5 px-3">Date Inked</th>
                 <th className="py-2.5 px-4">Lifecycle Events / Source Scan</th>
                 <th className="py-2.5 px-3">Date Cleaned</th>
                 <th className="py-2.5 px-3 text-right">Duration</th>
-                <th className="py-2.5 px-3 text-right">Actions</th>
+                {isAdmin && <th className="py-2.5 px-3 text-right">Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800/80">
@@ -747,15 +764,17 @@ export const PenDetailView: React.FC<Props> = ({
                         : 'hover:bg-zinc-50/80 dark:hover:bg-zinc-800/30'
                     }
                   >
-                    <td className="py-2.5 pl-4 pr-2">
-                      <input
-                        type="checkbox"
-                        checked={checked}
-                        onChange={() => toggleSessionSelection(s.id)}
-                        className="rounded border-zinc-300 text-emerald-600 cursor-pointer"
-                        title="Select session to split into another pen"
-                      />
-                    </td>
+                    {isAdmin && (
+                      <td className="py-2.5 pl-4 pr-2">
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={() => toggleSessionSelection(s.id)}
+                          className="rounded border-zinc-300 text-emerald-600 cursor-pointer"
+                          title="Select session to split into another pen"
+                        />
+                      </td>
+                    )}
                     <td className="py-2.5 px-3">
                       <button
                         onClick={() => onOpenInk(s.ink_id)}
@@ -820,14 +839,16 @@ export const PenDetailView: React.FC<Props> = ({
                     <td className="py-2.5 px-3 text-right font-mono-num font-medium">
                       {s.days_active}d
                     </td>
-                    <td className="py-2.5 px-3 text-right">
-                      <button
-                        onClick={() => setEditingSession(s)}
-                        className="px-2 py-0.5 rounded border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px]"
-                      >
-                        Edit
-                      </button>
-                    </td>
+                    {isAdmin && (
+                      <td className="py-2.5 px-3 text-right">
+                        <button
+                          onClick={() => setEditingSession(s)}
+                          className="px-2 py-0.5 rounded border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px]"
+                        >
+                          Edit
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 );
               })}

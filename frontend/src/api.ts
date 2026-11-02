@@ -1,5 +1,7 @@
 import type {
   AppSettingsStatus,
+  AuthStatus,
+  BackupRecord,
   CropBox,
   DashboardAnalytics,
   InkDetailResponse,
@@ -9,13 +11,48 @@ import type {
   PenOut,
   ScanBatchOut,
   SessionOut,
+  SyncResult,
+  SyncStatus,
   WritingSampleOut,
 } from './types';
 
+const ADMIN_TOKEN_KEY = 'atelier_admin_token';
+
+export function getStoredAdminToken(): string | null {
+  try {
+    return localStorage.getItem(ADMIN_TOKEN_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function setStoredAdminToken(token: string | null) {
+  try {
+    if (token) {
+      localStorage.setItem(ADMIN_TOKEN_KEY, token);
+    } else {
+      localStorage.removeItem(ADMIN_TOKEN_KEY);
+    }
+  } catch {}
+}
+
 async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
+  const token = getStoredAdminToken();
+  const baseHeaders: Record<string, string> = {};
+  if (!(init?.body instanceof FormData)) {
+    baseHeaders['Content-Type'] = 'application/json';
+  }
+  if (token) {
+    baseHeaders['X-Admin-Token'] = token;
+  }
+
   const res = await fetch(url, {
-    headers: init?.body instanceof FormData ? undefined : { 'Content-Type': 'application/json' },
+    credentials: 'include',
     ...init,
+    headers: {
+      ...baseHeaders,
+      ...(init?.headers as Record<string, string> | undefined),
+    },
   });
   if (!res.ok) {
     const errText = await res.text();
@@ -259,10 +296,37 @@ export const api = {
   // Settings
   getSettings: () => requestJson<AppSettingsStatus>('/api/settings'),
   updateSettings: (gemini_api_key: string) =>
-    requestJson<AppSettingsStatus>('/api/settings', {
-      method: 'PUT',
-      body: JSON.stringify({ gemini_api_key }),
-    }),
+  requestJson<AppSettingsStatus>('/api/settings', {
+    method: 'PUT',
+    body: JSON.stringify({ gemini_api_key }),
+  }),
   reseedDemo: () =>
     requestJson<{ status: string }>('/api/settings/reseed-demo', { method: 'POST' }),
+
+  // Auth & Permissions
+  auth: {
+    getStatus: () => requestJson<AuthStatus>('/api/auth/status'),
+    login: async (passcode: string) => {
+      const res = await requestJson<AuthStatus>('/api/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ passcode }),
+      });
+      if (res.is_admin) {
+        setStoredAdminToken(passcode);
+      }
+      return res;
+    },
+    logout: async () => {
+      setStoredAdminToken(null);
+      return requestJson<AuthStatus>('/api/auth/logout', { method: 'POST' });
+    },
+  },
+
+  // Cloud Synchronization & Backups
+  sync: {
+    getStatus: () => requestJson<SyncStatus>('/api/sync/status'),
+    createBackup: () => requestJson<{ status: string; backup: BackupRecord }>('/api/sync/backup', { method: 'POST' }),
+    push: () => requestJson<SyncResult>('/api/sync/push', { method: 'POST' }),
+    pull: () => requestJson<SyncResult>('/api/sync/pull', { method: 'POST' }),
+  },
 };

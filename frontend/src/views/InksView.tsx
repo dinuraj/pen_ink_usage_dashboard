@@ -11,6 +11,7 @@ import {
   X,
 } from 'lucide-react';
 import { api } from '../api';
+import { useAuth } from '../AuthContext';
 import type { InkOut } from '../types';
 import {
   CompanyFilterCombobox,
@@ -88,6 +89,7 @@ const FORMAT_RANK: Record<string, number> = {
 };
 
 export const InksView: React.FC<Props> = ({ inks, onRefresh, onSelectInk }) => {
+  const { isAdmin } = useAuth();
   // Separate Ink Company & Ink Name filters + facets
   const [companyFilter, setCompanyFilter] = useState('');
   const [companyExact, setCompanyExact] = useState(false);
@@ -330,13 +332,15 @@ export const InksView: React.FC<Props> = ({ inks, onRefresh, onSelectInk }) => {
             header to sort or change Format inline
           </p>
         </div>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 text-xs font-medium hover:opacity-90"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          Add Ink to Inventory
-        </button>
+        {isAdmin && (
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 text-xs font-medium hover:opacity-90"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Add Ink to Inventory
+          </button>
+        )}
       </div>
 
       {/* Separate Company & Name Filters + Sort Toolbar */}
@@ -610,7 +614,7 @@ export const InksView: React.FC<Props> = ({ inks, onRefresh, onSelectInk }) => {
                       <td className="py-2.5 px-3 whitespace-nowrap">
                         <StarRating
                           value={ink.rating}
-                          onChange={(next) => handleQuickRatingChange(ink.id, next)}
+                          onChange={isAdmin ? (next) => handleQuickRatingChange(ink.id, next) : undefined}
                         />
                       </td>
                       <td className="py-2.5 px-3 text-zinc-600 dark:text-zinc-400">
@@ -620,17 +624,23 @@ export const InksView: React.FC<Props> = ({ inks, onRefresh, onSelectInk }) => {
                         className="py-2.5 px-3"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        <select
-                          value={ink.format}
-                          disabled={updatingFormatId === ink.id}
-                          onChange={(e) => void handleQuickFormatChange(ink, e.target.value)}
-                          aria-label={`Container format for ${ink.brand} ${ink.name}`}
-                          className="px-2 py-1 rounded-md border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-[11px] font-medium text-zinc-700 dark:text-zinc-300 hover:border-indigo-400 focus:outline-none cursor-pointer"
-                        >
-                          <option value="bottle">Bottle</option>
-                          <option value="sample_vial">Sample Vial</option>
-                          <option value="cartridge">Cartridge</option>
-                        </select>
+                        {isAdmin ? (
+                          <select
+                            value={ink.format}
+                            disabled={updatingFormatId === ink.id}
+                            onChange={(e) => void handleQuickFormatChange(ink, e.target.value)}
+                            aria-label={`Container format for ${ink.brand} ${ink.name}`}
+                            className="px-2 py-1 rounded-md border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-[11px] font-medium text-zinc-700 dark:text-zinc-300 hover:border-indigo-400 focus:outline-none cursor-pointer"
+                          >
+                            <option value="bottle">Bottle</option>
+                            <option value="sample_vial">Sample Vial</option>
+                            <option value="cartridge">Cartridge</option>
+                          </select>
+                        ) : (
+                          <span className="text-[11px] font-medium text-zinc-600 dark:text-zinc-400 capitalize">
+                            {ink.format.replace('_', ' ')}
+                          </span>
+                        )}
                       </td>
                       <td className="py-2.5 px-3 text-right font-mono-num text-zinc-600 dark:text-zinc-400 whitespace-nowrap">
                         {ink.quantity > 1 ? `${ink.quantity} × ` : ''}
@@ -736,7 +746,7 @@ export const InksView: React.FC<Props> = ({ inks, onRefresh, onSelectInk }) => {
                 <div>
                   <StarRating
                     value={ink.rating}
-                    onChange={(next) => handleQuickRatingChange(ink.id, next)}
+                    onChange={isAdmin ? (next) => handleQuickRatingChange(ink.id, next) : undefined}
                   />
                 </div>
                 <div className="flex items-center justify-between pt-2 border-t border-zinc-100 dark:border-zinc-800 text-xs text-zinc-500 font-mono-num">

@@ -11,6 +11,7 @@ import {
   X,
 } from 'lucide-react';
 import { api } from '../api';
+import { useAuth } from '../AuthContext';
 import type { PenOut } from '../types';
 import {
   CompanyFilterCombobox,
@@ -98,6 +99,7 @@ const NIB_MATERIALS = ['Steel', '14k Gold', '18k Gold', '21k Gold', 'Titanium', 
 const MECHANISMS = ['Converter', 'Piston', 'Vacuum', 'Cartridge', 'Eyedropper', 'Lever', 'Aerometric'];
 
 export const PensView: React.FC<Props> = ({ pens, onRefresh, onSelectPen }) => {
+  const { isAdmin } = useAuth();
   // Separate Pen Company & Pen Name filters + multi-select Tag filter + facets
   const [companyFilter, setCompanyFilter] = useState('');
   const [companyExact, setCompanyExact] = useState(false);
@@ -395,13 +397,15 @@ export const PensView: React.FC<Props> = ({ pens, onRefresh, onSelectPen }) => {
             <strong>+ Tag</strong> on any pen to assign tags or click column headers to sort
           </p>
         </div>
-        <button
-          onClick={() => setShowAddModal(true)}
-          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 text-xs font-medium hover:opacity-90"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          Add Fountain Pen
-        </button>
+        {isAdmin && (
+          <button
+            onClick={() => setShowAddModal(true)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 text-xs font-medium hover:opacity-90"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Add Fountain Pen
+          </button>
+        )}
       </div>
 
       {/* Separate Company, Name & Multi-Select Tag Filters + Sort Toolbar */}
@@ -691,15 +695,23 @@ export const PensView: React.FC<Props> = ({ pens, onRefresh, onSelectPen }) => {
                       {p.color_variant || <span className="text-zinc-300 dark:text-zinc-700">—</span>}
                     </td>
                     <td className="py-2.5 px-3">
-                      <PenTagsInlineEditor
-                        tags={p.tags ?? []}
-                        onChange={(next) => handleQuickTagsChange(p.id, next)}
-                      />
+                      {isAdmin ? (
+                        <PenTagsInlineEditor
+                          tags={p.tags ?? []}
+                          onChange={(next) => handleQuickTagsChange(p.id, next)}
+                        />
+                      ) : (
+                        <div className="flex flex-wrap gap-1">
+                          {(p.tags ?? []).map((t) => (
+                            <PenTagBadge key={t} tag={t} />
+                          ))}
+                        </div>
+                      )}
                     </td>
                     <td className="py-2.5 px-3 whitespace-nowrap">
                       <StarRating
                         value={p.rating}
-                        onChange={(next) => handleQuickRatingChange(p.id, next)}
+                        onChange={isAdmin ? (next) => handleQuickRatingChange(p.id, next) : undefined}
                       />
                     </td>
                     <td className="py-2.5 px-3 whitespace-nowrap">
@@ -792,13 +804,21 @@ export const PensView: React.FC<Props> = ({ pens, onRefresh, onSelectPen }) => {
                 </div>
 
                 <div className="flex items-center justify-between gap-2">
-                  <PenTagsInlineEditor
-                    tags={p.tags ?? []}
-                    onChange={(next) => handleQuickTagsChange(p.id, next)}
-                  />
+                  {isAdmin ? (
+                    <PenTagsInlineEditor
+                      tags={p.tags ?? []}
+                      onChange={(next) => handleQuickTagsChange(p.id, next)}
+                    />
+                  ) : (
+                    <div className="flex flex-wrap gap-1">
+                      {(p.tags ?? []).map((t) => (
+                        <PenTagBadge key={t} tag={t} />
+                      ))}
+                    </div>
+                  )}
                   <StarRating
                     value={p.rating}
-                    onChange={(next) => handleQuickRatingChange(p.id, next)}
+                    onChange={isAdmin ? (next) => handleQuickRatingChange(p.id, next) : undefined}
                   />
                 </div>
 

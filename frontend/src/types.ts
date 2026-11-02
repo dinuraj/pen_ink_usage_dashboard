@@ -392,3 +392,44 @@ export interface AppSettingsStatus {
     scans: number;
   };
 }
+
+export interface BackupRecord {
+  filename: string;
+  path: string;
+  version: number;
+  trigger: string;
+  created_at: string;
+  size_bytes: number;
+  counts: {
+    pens: number;
+    inks: number;
+    notebooks: number;
+    sessions: number;
+    samples: number;
+    scans: number;
+  };
+}
+
+export interface SyncStatus {
+  cloud_configured: boolean;
+  cloud_connected: boolean;
+  connection_error?: string | null;
+  last_push?: string | null;
+  last_pull?: string | null;
+  backups_count: number;
+  recent_backups: BackupRecord[];
+}
+
+export interface SyncResult {
+  status: string;
+  backup: BackupRecord;
+  synced_tables?: Record<string, number>;
+  uploaded_media_count?: number;
+  message: string;
+}
+
+export interface AuthStatus {
+  is_admin: boolean;
+  auth_enabled: boolean;
+}
+

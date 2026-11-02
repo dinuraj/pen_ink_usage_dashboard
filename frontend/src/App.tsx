@@ -11,8 +11,12 @@ import {
   Plus,
   Feather,
   BookOpen,
+  Lock,
+  Unlock,
 } from 'lucide-react';
 import { api } from './api';
+import { useAuth } from './AuthContext';
+import { AdminLoginModal } from './components/AdminLoginModal';
 import type {
   AppSettingsStatus,
   DashboardAnalytics,
@@ -66,6 +70,7 @@ function parseHash(): RouteState {
 }
 
 export const App: React.FC = () => {
+  const { isAdmin, authEnabled, logout } = useAuth();
   const [route, setRoute] = useState<RouteState>(parseHash);
   const [dark, setDark] = useState<boolean>(() => localStorage.getItem('theme') === 'dark');
 
@@ -77,6 +82,7 @@ export const App: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [showQuickInkUp, setShowQuickInkUp] = useState<boolean>(false);
+  const [showLoginModal, setShowLoginModal] = useState<boolean>(false);
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', dark);
@@ -182,23 +188,55 @@ export const App: React.FC = () => {
               </div>
             </button>
 
-            <button
-              onClick={() => setDark((d) => !d)}
-              className="p-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
-              title="Toggle Light / Dark Mode"
-            >
-              {dark ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
-            </button>
+            <div className="flex items-center gap-1.5">
+              {authEnabled && (
+                isAdmin ? (
+                  <button
+                    onClick={() => logout()}
+                    className="p-1.5 rounded-lg border border-amber-300 dark:border-amber-700 bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400 hover:opacity-80 transition"
+                    title="Admin Mode Active (Click to Lock / Switch to Read-Only)"
+                  >
+                    <Unlock className="w-3.5 h-3.5" />
+                  </button>
+                ) : (
+                  <button
+                    onClick={() => setShowLoginModal(true)}
+                    className="p-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition"
+                    title="Public Read-Only View (Click to Unlock Admin Mode)"
+                  >
+                    <Lock className="w-3.5 h-3.5" />
+                  </button>
+                )
+              )}
+
+              <button
+                onClick={() => setDark((d) => !d)}
+                className="p-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
+                title="Toggle Light / Dark Mode"
+              >
+                {dark ? <Sun className="w-3.5 h-3.5" /> : <Moon className="w-3.5 h-3.5" />}
+              </button>
+            </div>
           </div>
 
           <div className="p-3">
-            <button
-              onClick={() => setShowQuickInkUp(true)}
-              className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium shadow-2xs mb-3 transition"
-            >
-              <Plus className="w-3.5 h-3.5" />
-              Quick Log Ink-Up
-            </button>
+            {isAdmin ? (
+              <button
+                onClick={() => setShowQuickInkUp(true)}
+                className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium shadow-2xs mb-3 transition"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                Quick Log Ink-Up
+              </button>
+            ) : authEnabled ? (
+              <button
+                onClick={() => setShowLoginModal(true)}
+                className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg border border-dashed border-zinc-300 dark:border-zinc-700 text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-200 text-xs font-medium mb-3 transition"
+              >
+                <Lock className="w-3.5 h-3.5" />
+                Unlock Admin to Edit
+              </button>
+            ) : null}
 
             <nav className="flex md:flex-col gap-1 overflow-x-auto md:overflow-visible">
               {navItems.map((item) => {
@@ -236,8 +274,16 @@ export const App: React.FC = () => {
 
         <div className="hidden md:block p-4 border-t border-zinc-100 dark:border-zinc-800 text-[11px] text-zinc-400 space-y-1">
           <div className="flex items-center justify-between">
-            <span>Mode</span>
-            <span className="font-mono-num text-zinc-600 dark:text-zinc-300">Local Personal</span>
+            <span>Access Mode</span>
+            <span
+              className={`font-medium ${
+                isAdmin
+                  ? 'text-amber-600 dark:text-amber-400'
+                  : 'text-zinc-500'
+              }`}
+            >
+              {isAdmin ? 'Admin (Full Edit)' : 'Public (Read-Only)'}
+            </span>
           </div>
           <div className="flex items-center justify-between">
             <span>Vision OCR</span>
@@ -350,7 +396,11 @@ export const App: React.FC = () => {
             )}
 
             {route.tab === 'settings' && settings && (
-              <SettingsView settings={settings} onRefreshAll={refreshAll} />
+              <SettingsView
+                settings={settings}
+                onRefreshAll={refreshAll}
+                onOpenLoginModal={() => setShowLoginModal(true)}
+              />
             )}
           </>
         )}
@@ -364,6 +414,12 @@ export const App: React.FC = () => {
           onCompleted={refreshAll}
         />
       )}
+
+      <AdminLoginModal
+        isOpen={showLoginModal}
+        onClose={() => setShowLoginModal(false)}
+        onSuccess={refreshAll}
+      />
     </div>
   );
 };

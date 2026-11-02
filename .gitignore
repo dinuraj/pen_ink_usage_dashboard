@@ -18,3 +18,8 @@ exports/
 .env*
 backend/.env*
 
+# Versioned Database Backups (explicitly tracked in Git for rollback & history)
+!backups/
+!backups/**
+
+

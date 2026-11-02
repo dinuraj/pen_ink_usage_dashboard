@@ -11,6 +11,7 @@ import {
   X,
 } from 'lucide-react';
 import { api } from '../api';
+import { useAuth } from '../AuthContext';
 import type { NotebookOut } from '../types';
 import {
   CompanyFilterCombobox,
@@ -224,6 +225,7 @@ const CompletionBar: React.FC<{
 };
 
 export const NotebooksView: React.FC<Props> = ({ notebooks, onRefresh }) => {
+  const { isAdmin } = useAuth();
   const [companyFilter, setCompanyFilter] = useState('');
   const [companyExact, setCompanyExact] = useState(false);
   const [nameQuery, setNameQuery] = useState('');
@@ -467,13 +469,15 @@ export const NotebooksView: React.FC<Props> = ({ notebooks, onRefresh }) => {
             · Click any column header to sort · Click % or stars to update inline
           </p>
         </div>
-        <button
-          onClick={openAdd}
-          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 text-xs font-medium hover:opacity-90"
-        >
-          <Plus className="w-3.5 h-3.5" />
-          Add Notebook
-        </button>
+        {isAdmin && (
+          <button
+            onClick={openAdd}
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 text-xs font-medium hover:opacity-90"
+          >
+            <Plus className="w-3.5 h-3.5" />
+            Add Notebook
+          </button>
+        )}
       </div>
 
       {/* KPI strip */}
@@ -628,7 +632,7 @@ export const NotebooksView: React.FC<Props> = ({ notebooks, onRefresh }) => {
                   <SortableTh label="Start / End" sortKey="start_date" {...thProps} />
                   <SortableTh label="Completion" sortKey="completion_pct" {...thProps} />
                   <SortableTh label="Rating" sortKey="rating" {...thProps} />
-                  <th className="py-2.5 pl-3 pr-4 text-right">Actions</th>
+                  {isAdmin && <th className="py-2.5 pl-3 pr-4 text-right">Actions</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800/80">
@@ -655,42 +659,54 @@ export const NotebooksView: React.FC<Props> = ({ notebooks, onRefresh }) => {
                     </td>
                     <td className="py-2.5 px-3 text-zinc-600 dark:text-zinc-400">{nb.usage_type}</td>
                     <td className="py-2.5 px-3" onClick={(e) => e.stopPropagation()}>
-                      <select
-                        value={nb.status}
-                        onChange={(e) => void quickUpdate(nb.id, { status: e.target.value })}
-                        className="px-1.5 py-0.5 rounded border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-[11px] font-medium cursor-pointer"
-                      >
-                        <option value="in_use">In Use</option>
-                        <option value="stash">Stash</option>
-                        <option value="finished">Finished</option>
-                      </select>
+                      {isAdmin ? (
+                        <select
+                          value={nb.status}
+                          onChange={(e) => void quickUpdate(nb.id, { status: e.target.value })}
+                          className="px-1.5 py-0.5 rounded border border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-950 text-[11px] font-medium cursor-pointer"
+                        >
+                          <option value="in_use">In Use</option>
+                          <option value="stash">Stash</option>
+                          <option value="finished">Finished</option>
+                        </select>
+                      ) : (
+                        <StatusBadge status={nb.status} />
+                      )}
                     </td>
                     <td className="py-2.5 px-3 font-mono-num text-zinc-500 whitespace-nowrap">
                       {nb.start_date || '—'}
                       {nb.end_date && <div className="text-[10px] text-zinc-400">→ {nb.end_date}</div>}
                     </td>
                     <td className="py-2.5 px-3">
-                      <CompletionBar value={nb.completion_pct} onChange={(v) => void handleCompletionChange(nb, v)} />
+                      <CompletionBar
+                        value={nb.completion_pct}
+                        onChange={isAdmin ? (v) => void handleCompletionChange(nb, v) : undefined}
+                      />
                     </td>
                     <td className="py-2.5 px-3 whitespace-nowrap">
-                      <StarRating value={nb.rating} onChange={(r) => quickUpdate(nb.id, { rating: r })} />
+                      <StarRating
+                        value={nb.rating}
+                        onChange={isAdmin ? (r) => quickUpdate(nb.id, { rating: r }) : undefined}
+                      />
                     </td>
-                    <td className="py-2.5 pl-3 pr-4 text-right whitespace-nowrap">
-                      <button
-                        onClick={() => openEdit(nb)}
-                        className="p-1 rounded text-zinc-400 hover:text-indigo-600 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                        title="Edit notebook"
-                      >
-                        <Edit3 className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => void handleDelete(nb)}
-                        className="p-1 rounded text-zinc-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
-                        title="Delete notebook"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </td>
+                    {isAdmin && (
+                      <td className="py-2.5 pl-3 pr-4 text-right whitespace-nowrap">
+                        <button
+                          onClick={() => openEdit(nb)}
+                          className="p-1 rounded text-zinc-400 hover:text-indigo-600 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                          title="Edit notebook"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() => void handleDelete(nb)}
+                          className="p-1 rounded text-zinc-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+                          title="Delete notebook"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))}
                 {rows.length === 0 && (
@@ -737,14 +753,16 @@ export const NotebooksView: React.FC<Props> = ({ notebooks, onRefresh }) => {
                   {nb.usage_type} · {nb.start_date || 'Not started'}
                   {nb.end_date ? ` → ${nb.end_date}` : ''}
                 </span>
-                <span className="flex items-center gap-1">
-                  <button onClick={() => openEdit(nb)} className="p-1 rounded hover:text-indigo-600" title="Edit">
-                    <Edit3 className="w-3.5 h-3.5" />
-                  </button>
-                  <button onClick={() => void handleDelete(nb)} className="p-1 rounded hover:text-red-600" title="Delete">
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </span>
+                {isAdmin && (
+                  <span className="flex items-center gap-1">
+                    <button onClick={() => openEdit(nb)} className="p-1 rounded hover:text-indigo-600" title="Edit">
+                      <Edit3 className="w-3.5 h-3.5" />
+                    </button>
+                    <button onClick={() => void handleDelete(nb)} className="p-1 rounded hover:text-red-600" title="Delete">
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </span>
+                )}
               </div>
             </div>
           ))}

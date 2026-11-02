@@ -18,6 +18,7 @@ import {
   Check,
 } from 'lucide-react';
 import { api } from '../api';
+import { useAuth } from '../AuthContext';
 import type {
   CropBox,
   ExtractedEntryCandidate,
@@ -104,6 +105,7 @@ export const ScanStudioView: React.FC<Props> = ({
   onOpenPen,
   onOpenInk,
 }) => {
+  const { isAdmin } = useAuth();
   const [batches, setBatches] = useState<ScanBatchOut[]>([]);
   const [selectedBatchId, setSelectedBatchId] = useState<number | null>(null);
   const [activePageNum, setActivePageNum] = useState<number>(1);
@@ -649,25 +651,33 @@ export const ScanStudioView: React.FC<Props> = ({
         </div>
 
         <div className="flex items-center gap-2">
-          {!geminiConfigured && (
-            <button
-              onClick={onOpenSettings}
-              className="px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-            >
-              Configure Gemini Key
-            </button>
+          {isAdmin ? (
+            <>
+              {!geminiConfigured && (
+                <button
+                  onClick={onOpenSettings}
+                  className="px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-700 text-xs font-medium text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                >
+                  Configure Gemini Key
+                </button>
+              )}
+              <label className="cursor-pointer inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 text-xs font-medium hover:opacity-90">
+                <Upload className="w-3.5 h-3.5" />
+                {uploading ? 'Rendering PDF Pages...' : 'Upload New Scan PDF'}
+                <input
+                  type="file"
+                  accept=".pdf,image/*"
+                  onChange={handleFileUpload}
+                  disabled={uploading}
+                  className="hidden"
+                />
+              </label>
+            </>
+          ) : (
+            <span className="px-2.5 py-1 rounded-full bg-zinc-100 dark:bg-zinc-800 text-[11px] font-medium text-zinc-500">
+              Read-Only Viewer
+            </span>
           )}
-          <label className="cursor-pointer inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 text-xs font-medium hover:opacity-90">
-            <Upload className="w-3.5 h-3.5" />
-            {uploading ? 'Rendering PDF Pages...' : 'Upload New Scan PDF'}
-            <input
-              type="file"
-              accept=".pdf,image/*"
-              onChange={handleFileUpload}
-              disabled={uploading}
-              className="hidden"
-            />
-          </label>
         </div>
       </div>
 

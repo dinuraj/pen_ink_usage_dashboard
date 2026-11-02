@@ -11,6 +11,7 @@ import {
   X,
 } from 'lucide-react';
 import { api } from '../api';
+import { useAuth } from '../AuthContext';
 import type { InkDetailResponse, InkOut, PenOut, SessionOut, WritingSampleOut } from '../types';
 import { StarRating } from '../components/FilterSortControls';
 import { MarkdownNotes } from '../components/MarkdownNotes';
@@ -65,6 +66,7 @@ export const InkDetailView: React.FC<Props> = ({
   onOpenScanPage,
   onGlobalRefresh,
 }) => {
+  const { isAdmin } = useAuth();
   const [detail, setDetail] = useState<InkDetailResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [showInkUpModal, setShowInkUpModal] = useState(false);
@@ -184,35 +186,37 @@ export const InkDetailView: React.FC<Props> = ({
           <ArrowLeft className="w-3.5 h-3.5" />
           Back to Ink Library
         </button>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setEditingMeta((v) => !v)}
-            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-md border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-          >
-            <Edit3 className="w-3.5 h-3.5" />
-            Edit Ink, Format &amp; URL
-          </button>
-          {otherInks.length > 0 && (
+        {isAdmin && (
+          <div className="flex items-center gap-2">
             <button
-              onClick={() => {
-                setMergeTargetId(otherInks[0].id);
-                setShowMergeModal(true);
-              }}
+              onClick={() => setEditingMeta((v) => !v)}
               className="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-md border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800"
-              title="Merge duplicate ink entry into another ink"
             >
-              <GitMerge className="w-3.5 h-3.5 text-indigo-500" />
-              Merge Duplicate
+              <Edit3 className="w-3.5 h-3.5" />
+              Edit Ink, Format &amp; URL
             </button>
-          )}
-          <button
-            onClick={handleDelete}
-            className="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-md border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-            Delete
-          </button>
-        </div>
+            {otherInks.length > 0 && (
+              <button
+                onClick={() => {
+                  setMergeTargetId(otherInks[0].id);
+                  setShowMergeModal(true);
+                }}
+                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-md border border-zinc-200 dark:border-zinc-800 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                title="Merge duplicate ink entry into another ink"
+              >
+                <GitMerge className="w-3.5 h-3.5 text-indigo-500" />
+                Merge Duplicate
+              </button>
+            )}
+            <button
+              onClick={handleDelete}
+              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-md border border-red-200 dark:border-red-900/50 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/30"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+              Delete
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Swatch & Inventory Hero */}
@@ -388,7 +392,7 @@ export const InkDetailView: React.FC<Props> = ({
                     <span className="text-zinc-500 font-medium">Rating:</span>
                     <StarRating
                       value={ink.rating}
-                      onChange={handleRatingChange}
+                      onChange={isAdmin ? handleRatingChange : undefined}
                       size="md"
                       showLabel
                     />
@@ -433,13 +437,15 @@ export const InkDetailView: React.FC<Props> = ({
                   </a>
                 )}
 
-                <button
-                  onClick={() => setShowInkUpModal(true)}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 text-xs font-medium hover:opacity-90"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  Ink a Pen with This
-                </button>
+                {isAdmin && (
+                  <button
+                    onClick={() => setShowInkUpModal(true)}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 text-xs font-medium hover:opacity-90"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    Ink a Pen with This
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -452,11 +458,12 @@ export const InkDetailView: React.FC<Props> = ({
                 {FORMATS.map((fmt) => (
                   <button
                     key={fmt.key}
+                    disabled={!isAdmin}
                     onClick={() => void handleFormatChange(fmt.key)}
                     className={`px-2.5 py-1 rounded-md font-medium transition ${
                       ink.format === fmt.key
                         ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-2xs'
-                        : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
+                        : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 disabled:opacity-75'
                     }`}
                   >
                     {fmt.label}
@@ -471,11 +478,12 @@ export const InkDetailView: React.FC<Props> = ({
                 {LEVELS.map((lvl) => (
                   <button
                     key={lvl.key}
+                    disabled={!isAdmin}
                     onClick={() => void handleLevelChange(lvl.key)}
                     className={`px-2.5 py-1 rounded-md font-mono-num font-medium transition ${
                       ink.remaining_level === lvl.key
                         ? 'bg-white dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100 shadow-2xs'
-                        : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200'
+                        : 'text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200 disabled:opacity-75'
                     }`}
                   >
                     {lvl.label}
@@ -523,6 +531,7 @@ export const InkDetailView: React.FC<Props> = ({
       {/* Standalone Custom Notes */}
       <MarkdownNotes
         title="Ink Notes & Behavior"
+        editable={isAdmin}
         placeholder="Record standalone notes about this ink (shading, sheen, dry time, feathering, favorite nib sizes)..."
         value={ink.custom_notes}
         onSave={async (next) => {
@@ -597,7 +606,7 @@ export const InkDetailView: React.FC<Props> = ({
                 <th className="py-2.5 px-3">Scan</th>
                 <th className="py-2.5 px-3">Date Cleaned</th>
                 <th className="py-2.5 px-3 text-right">Duration</th>
-                <th className="py-2.5 px-4 text-right">Actions</th>
+                {isAdmin && <th className="py-2.5 px-4 text-right">Actions</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800/80">
@@ -654,14 +663,16 @@ export const InkDetailView: React.FC<Props> = ({
                     <td className="py-2.5 px-3 text-right font-mono-num font-medium">
                       {s.days_active}d
                     </td>
-                    <td className="py-2.5 px-4 text-right">
-                      <button
-                        onClick={() => setEditingSession(s)}
-                        className="px-2 py-0.5 rounded border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px]"
-                      >
-                        Edit
-                      </button>
-                    </td>
+                    {isAdmin && (
+                      <td className="py-2.5 px-4 text-right">
+                        <button
+                          onClick={() => setEditingSession(s)}
+                          className="px-2 py-0.5 rounded border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-[11px]"
+                        >
+                          Edit
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 );
               })}

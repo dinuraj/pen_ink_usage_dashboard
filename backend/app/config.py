@@ -51,8 +51,15 @@ S3_PUBLIC_URL_PREFIX = os.getenv("S3_PUBLIC_URL_PREFIX", "").strip()
 CACHE_DIR = DATA_DIR / "cache"
 CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
-# Access Protection (leave empty for unauthenticated local development)
+# Access Protection (default from env or .env.render)
 APP_ACCESS_TOKEN = os.getenv("APP_ACCESS_TOKEN", "").strip()
+if not APP_ACCESS_TOKEN:
+    env_render = BASE_DIR / ".env.render"
+    if env_render.exists():
+        for line in env_render.read_text(encoding="utf-8").splitlines():
+            if line.startswith("APP_ACCESS_TOKEN="):
+                APP_ACCESS_TOKEN = line.split("=", 1)[1].strip()
+                break
 
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 FRONTEND_DIST_DIR = BASE_DIR / "frontend" / "dist"

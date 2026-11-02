@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Search, Upload, X } from 'lucide-react';
 import { api } from '../api';
+import { useAuth } from '../AuthContext';
 import type { InkOut, PenOut, WritingSampleOut } from '../types';
 import { SampleLightbox } from '../components/SampleLightbox';
 
@@ -21,6 +22,7 @@ export const SamplesView: React.FC<Props> = ({
   onOpenScanPage,
   onGlobalRefresh,
 }) => {
+  const { isAdmin } = useAuth();
   const [samples, setSamples] = useState<WritingSampleOut[]>([]);
   const [inkCompanyFilter, setInkCompanyFilter] = useState<string>('all');
   const [penCompanyFilter, setPenCompanyFilter] = useState<string>('all');
@@ -106,13 +108,15 @@ export const SamplesView: React.FC<Props> = ({
             pens, and nib sizes.
           </p>
         </div>
-        <button
-          onClick={() => setShowUploadModal(true)}
-          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 text-xs font-medium hover:opacity-90"
-        >
-          <Upload className="w-3.5 h-3.5" />
-          Upload Sample Image
-        </button>
+        {isAdmin && (
+          <button
+            onClick={() => setShowUploadModal(true)}
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 text-xs font-medium hover:opacity-90"
+          >
+            <Upload className="w-3.5 h-3.5" />
+            Upload Sample Image
+          </button>
+        )}
       </div>
 
       {/* Multi-Facet Filter Bar */}

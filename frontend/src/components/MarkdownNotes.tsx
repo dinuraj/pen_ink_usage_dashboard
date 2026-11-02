@@ -6,6 +6,7 @@ interface Props {
   placeholder?: string;
   value: string;
   onSave: (nextValue: string) => Promise<void>;
+  editable?: boolean;
 }
 
 function renderInlineFormatted(text: string): React.ReactNode[] {
@@ -37,6 +38,7 @@ export const MarkdownNotes: React.FC<Props> = ({
   placeholder = 'Add standalone notes (nib feel, tuning, ink properties, favorite paper pairings)...',
   value,
   onSave,
+  editable = true,
 }) => {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(value);
@@ -64,35 +66,37 @@ export const MarkdownNotes: React.FC<Props> = ({
           <h3 className="text-sm font-semibold text-zinc-900 dark:text-zinc-100">{title}</h3>
           <span className="text-[11px] text-zinc-400">Standalone · Markdown supported</span>
         </div>
-        {!editing ? (
-          <button
-            onClick={() => setEditing(true)}
-            className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800"
-          >
-            <Edit3 className="w-3.5 h-3.5" />
-            Edit Notes
-          </button>
-        ) : (
-          <div className="flex items-center gap-1.5">
+        {editable && (
+          !editing ? (
             <button
-              onClick={() => {
-                setDraft(value);
-                setEditing(false);
-              }}
-              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-md border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              onClick={() => setEditing(true)}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md border border-zinc-200 dark:border-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-50 dark:hover:bg-zinc-800"
             >
-              <X className="w-3.5 h-3.5" />
-              Cancel
+              <Edit3 className="w-3.5 h-3.5" />
+              Edit Notes
             </button>
-            <button
-              disabled={saving}
-              onClick={handleSave}
-              className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 hover:opacity-90 disabled:opacity-50"
-            >
-              <Check className="w-3.5 h-3.5" />
-              {saving ? 'Saving...' : 'Save'}
-            </button>
-          </div>
+          ) : (
+            <div className="flex items-center gap-1.5">
+              <button
+                onClick={() => {
+                  setDraft(value);
+                  setEditing(false);
+                }}
+                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded-md border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800"
+              >
+                <X className="w-3.5 h-3.5" />
+                Cancel
+              </button>
+              <button
+                disabled={saving}
+                onClick={handleSave}
+                className="inline-flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-md bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900 hover:opacity-90 disabled:opacity-50"
+              >
+                <Check className="w-3.5 h-3.5" />
+                {saving ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+          )
         )}
       </div>
 
@@ -131,7 +135,9 @@ export const MarkdownNotes: React.FC<Props> = ({
           })}
         </div>
       ) : (
-        <p className="text-sm text-zinc-400 italic">{placeholder}</p>
+        <p className="text-sm text-zinc-400 italic">
+          {editable ? placeholder : 'No notes recorded.'}
+        </p>
       )}
     </div>
   );

@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
   RefreshCw,
   Sparkles,
   Plus,
@@ -28,6 +30,10 @@ interface Props {
   penId: number;
   allPens: PenOut[];
   allInks: InkOut[];
+  prevPen?: PenOut;
+  nextPen?: PenOut;
+  currentIndex?: number;
+  totalCount?: number;
   onBack: () => void;
   onOpenInk: (inkId: number) => void;
   onOpenPen: (penId: number) => void;
@@ -39,6 +45,10 @@ export const PenDetailView: React.FC<Props> = ({
   penId,
   allPens,
   allInks,
+  prevPen,
+  nextPen,
+  currentIndex,
+  totalCount,
   onBack,
   onOpenInk,
   onOpenPen,
@@ -115,8 +125,37 @@ export const PenDetailView: React.FC<Props> = ({
 
   useEffect(() => {
     setBannerNotice(null);
+    window.scrollTo({ top: 0, behavior: 'instant' });
     void loadDetail();
-  }, [loadDetail]);
+  }, [loadDetail, penId]);
+
+  // Keyboard navigation: Left/Right arrows to step through pens
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+      if (showMergeModal || showSplitModal || showInkUpModal || lifecycleMode || editingSpecs || editingSession || lightboxSample) {
+        return;
+      }
+      if (e.key === 'ArrowLeft' && prevPen) {
+        e.preventDefault();
+        onOpenPen(prevPen.id);
+      } else if (e.key === 'ArrowRight' && nextPen) {
+        e.preventDefault();
+        onOpenPen(nextPen.id);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [prevPen, nextPen, onOpenPen, showMergeModal, showSplitModal, showInkUpModal, lifecycleMode, editingSpecs, editingSession, lightboxSample]);
 
   if (loading || !detail) {
     return <div className="py-16 text-center text-xs text-zinc-400">Loading pen details...</div>;
@@ -279,15 +318,50 @@ export const PenDetailView: React.FC<Props> = ({
 
   return (
     <div className="space-y-6">
-      {/* Top Breadcrumb & Actions */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <button
-          onClick={onBack}
-          className="inline-flex items-center gap-1.5 text-xs font-medium text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          Back to Pen Cabinet
-        </button>
+      {/* Top Breadcrumb & Next/Previous Navigation */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={onBack}
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            Back to Pen Cabinet
+          </button>
+
+          {(prevPen || nextPen || totalCount) && (
+            <div className="flex items-center gap-1 pl-2.5 border-l border-zinc-200 dark:border-zinc-800">
+              <button
+                onClick={() => prevPen && onOpenPen(prevPen.id)}
+                disabled={!prevPen}
+                className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-35 disabled:cursor-not-allowed transition"
+                title={prevPen ? `Previous: ${prevPen.brand} ${prevPen.model} (Left Arrow)` : 'No previous pen in list'}
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Prev</span>
+              </button>
+
+              {currentIndex !== undefined && totalCount !== undefined && (
+                <span
+                  className="px-2 text-[11px] font-mono-num text-zinc-500 whitespace-nowrap"
+                  title="Position in current cabinet filter"
+                >
+                  {currentIndex + 1} of {totalCount}
+                </span>
+              )}
+
+              <button
+                onClick={() => nextPen && onOpenPen(nextPen.id)}
+                disabled={!nextPen}
+                className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-35 disabled:cursor-not-allowed transition"
+                title={nextPen ? `Next: ${nextPen.brand} ${nextPen.model} (Right Arrow)` : 'No next pen in list'}
+              >
+                <span className="hidden sm:inline">Next</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+        </div>
         {isAdmin && (
           <div className="flex flex-wrap items-center gap-2">
             <button

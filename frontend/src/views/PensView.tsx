@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Plus,
   Search,
@@ -13,6 +13,11 @@ import {
 import { api } from '../api';
 import { useAuth } from '../AuthContext';
 import type { PenOut } from '../types';
+import {
+  getPenCabinetState,
+  savePenCabinetState,
+  type PenSortKey,
+} from '../utils/navigationState';
 import {
   CompanyFilterCombobox,
   matchesRatingFilter,
@@ -32,22 +37,6 @@ interface Props {
   onRefresh: () => void;
   onSelectPen: (id: number) => void;
 }
-
-type PenSortKey =
-  | 'brand'
-  | 'model'
-  | 'color_variant'
-  | 'tags'
-  | 'rating'
-  | 'nib_size'
-  | 'nib_material'
-  | 'filling_mechanism'
-  | 'status_ink'
-  | 'times_inked'
-  | 'total_refills'
-  | 'total_days_inked'
-  | 'last_cleaned_date'
-  | 'sample_count';
 
 const PEN_SORT_OPTIONS: Array<{ key: PenSortKey; label: string; defaultDir: 'asc' | 'desc' }> = [
   { key: 'brand', label: 'Pen Company', defaultDir: 'asc' },
@@ -100,23 +89,67 @@ const MECHANISMS = ['Converter', 'Piston', 'Vacuum', 'Cartridge', 'Eyedropper', 
 
 export const PensView: React.FC<Props> = ({ pens, onRefresh, onSelectPen }) => {
   const { isAdmin } = useAuth();
+  const savedState = useMemo(() => getPenCabinetState(), []);
+
   // Separate Pen Company & Pen Name filters + multi-select Tag filter + facets
-  const [companyFilter, setCompanyFilter] = useState('');
-  const [companyExact, setCompanyExact] = useState(false);
-  const [nameQuery, setNameQuery] = useState('');
-  const [tagFilters, setTagFilters] = useState<string[]>([]);
-  const [tagMatchMode, setTagMatchMode] = useState<'any' | 'all'>('any');
-  const [ratingFilter, setRatingFilter] = useState<RatingFilterValue>('all');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'inked' | 'clean'>('all');
-  const [nibFilter, setNibFilter] = useState('all');
-  const [mechanismFilter, setMechanismFilter] = useState('all');
+  const [companyFilter, setCompanyFilter] = useState(savedState.companyFilter);
+  const [companyExact, setCompanyExact] = useState(savedState.companyExact);
+  const [nameQuery, setNameQuery] = useState(savedState.nameQuery);
+  const [tagFilters, setTagFilters] = useState<string[]>(savedState.tagFilters);
+  const [tagMatchMode, setTagMatchMode] = useState<'any' | 'all'>(savedState.tagMatchMode);
+  const [ratingFilter, setRatingFilter] = useState<RatingFilterValue>(savedState.ratingFilter);
+  const [statusFilter, setStatusFilter] = useState<'all' | 'inked' | 'clean'>(savedState.statusFilter);
+  const [nibFilter, setNibFilter] = useState(savedState.nibFilter);
+  const [mechanismFilter, setMechanismFilter] = useState(savedState.mechanismFilter);
 
   // Column sorting
-  const [sortKey, setSortKey] = useState<PenSortKey>('brand');
-  const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
+  const [sortKey, setSortKey] = useState<PenSortKey>(savedState.sortKey);
+  const [sortDir, setSortDir] = useState<'asc' | 'desc'>(savedState.sortDir);
 
-  const [viewMode, setViewMode] = useState<'table' | 'grid'>('table');
+  const [viewMode, setViewMode] = useState<'table' | 'grid'>(savedState.viewMode);
   const [showAddModal, setShowAddModal] = useState(false);
+
+  // Sync state to persistent cache whenever filters/viewMode change
+  useEffect(() => {
+    savePenCabinetState({
+      companyFilter,
+      companyExact,
+      nameQuery,
+      tagFilters,
+      tagMatchMode,
+      ratingFilter,
+      statusFilter,
+      nibFilter,
+      mechanismFilter,
+      sortKey,
+      sortDir,
+      viewMode,
+    });
+  }, [
+    companyFilter,
+    companyExact,
+    nameQuery,
+    tagFilters,
+    tagMatchMode,
+    ratingFilter,
+    statusFilter,
+    nibFilter,
+    mechanismFilter,
+    sortKey,
+    sortDir,
+    viewMode,
+  ]);
+
+  // Restore scroll position after mount and first render
+  useEffect(() => {
+    const state = getPenCabinetState();
+    if (state.scrollY > 0) {
+      const timer = setTimeout(() => {
+        window.scrollTo({ top: state.scrollY, behavior: 'instant' });
+      }, 35);
+      return () => clearTimeout(timer);
+    }
+  }, []);
 
   // Add Pen Form state
   const [brand, setBrand] = useState('');
@@ -205,10 +238,23 @@ export const PensView: React.FC<Props> = ({ pens, onRefresh, onSelectPen }) => {
     setCompanyExact(false);
     setNameQuery('');
     setTagFilters([]);
+    setTagMatchMode('any');
     setRatingFilter('all');
     setStatusFilter('all');
     setNibFilter('all');
     setMechanismFilter('all');
+    savePenCabinetState({
+      companyFilter: '',
+      companyExact: false,
+      nameQuery: '',
+      tagFilters: [],
+      tagMatchMode: 'any',
+      ratingFilter: 'all',
+      statusFilter: 'all',
+      nibFilter: 'all',
+      mechanismFilter: 'all',
+      scrollY: 0,
+    });
   };
 
   const sortedAndFiltered = useMemo(() => {
@@ -349,6 +395,26 @@ export const PensView: React.FC<Props> = ({ pens, onRefresh, onSelectPen }) => {
     sortKey,
     sortDir,
   ]);
+
+  const handleSelectPen = (id: number) => {
+    savePenCabinetState({
+      companyFilter,
+      companyExact,
+      nameQuery,
+      tagFilters,
+      tagMatchMode,
+      ratingFilter,
+      statusFilter,
+      nibFilter,
+      mechanismFilter,
+      sortKey,
+      sortDir,
+      viewMode,
+      scrollY: window.scrollY,
+      filteredPenIds: sortedAndFiltered.map((p) => p.id),
+    });
+    onSelectPen(id);
+  };
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -678,7 +744,7 @@ export const PensView: React.FC<Props> = ({ pens, onRefresh, onSelectPen }) => {
                 {sortedAndFiltered.map((p) => (
                   <tr
                     key={p.id}
-                    onClick={() => onSelectPen(p.id)}
+                    onClick={() => handleSelectPen(p.id)}
                     className="cursor-pointer hover:bg-zinc-50/90 dark:hover:bg-zinc-800/40 transition-colors"
                   >
                     <td className="py-2.5 pl-4 pr-3 font-medium text-zinc-700 dark:text-zinc-300">
@@ -769,7 +835,7 @@ export const PensView: React.FC<Props> = ({ pens, onRefresh, onSelectPen }) => {
           {sortedAndFiltered.map((p) => (
             <div
               key={p.id}
-              onClick={() => onSelectPen(p.id)}
+              onClick={() => handleSelectPen(p.id)}
               className="cursor-pointer group rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden hover:border-indigo-400 transition"
             >
               {p.primary_photo_url && (

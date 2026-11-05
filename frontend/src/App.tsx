@@ -34,6 +34,7 @@ import { ScanStudioView } from './views/ScanStudioView';
 import { SamplesView } from './views/SamplesView';
 import { SettingsView } from './views/SettingsView';
 import { QuickInkUpModal } from './components/ActionModals';
+import { getPenCabinetState, getInkLibraryState } from './utils/navigationState';
 
 type RouteState =
   | { tab: 'dashboard' }
@@ -139,6 +140,40 @@ export const App: React.FC = () => {
   useEffect(() => {
     void refreshAll();
   }, [refreshAll]);
+
+  // Context-aware sequence for Next/Previous Pen navigation
+  const activePenIds = useMemo(() => {
+    const state = getPenCabinetState();
+    if (state.filteredPenIds && state.filteredPenIds.length > 0) {
+      if (route.tab === 'pens' && route.penId && state.filteredPenIds.includes(route.penId)) {
+        return state.filteredPenIds;
+      }
+    }
+    return pens.map((p) => p.id);
+  }, [pens, route]);
+
+  const currentPenIdx = route.tab === 'pens' && route.penId ? activePenIds.indexOf(route.penId) : -1;
+  const prevPenId = currentPenIdx > 0 ? activePenIds[currentPenIdx - 1] : undefined;
+  const nextPenId = currentPenIdx >= 0 && currentPenIdx < activePenIds.length - 1 ? activePenIds[currentPenIdx + 1] : undefined;
+  const prevPen = prevPenId ? pens.find((p) => p.id === prevPenId) : undefined;
+  const nextPen = nextPenId ? pens.find((p) => p.id === nextPenId) : undefined;
+
+  // Context-aware sequence for Next/Previous Ink navigation
+  const activeInkIds = useMemo(() => {
+    const state = getInkLibraryState();
+    if (state.filteredInkIds && state.filteredInkIds.length > 0) {
+      if (route.tab === 'inks' && route.inkId && state.filteredInkIds.includes(route.inkId)) {
+        return state.filteredInkIds;
+      }
+    }
+    return inks.map((i) => i.id);
+  }, [inks, route]);
+
+  const currentInkIdx = route.tab === 'inks' && route.inkId ? activeInkIds.indexOf(route.inkId) : -1;
+  const prevInkId = currentInkIdx > 0 ? activeInkIds[currentInkIdx - 1] : undefined;
+  const nextInkId = currentInkIdx >= 0 && currentInkIdx < activeInkIds.length - 1 ? activeInkIds[currentInkIdx + 1] : undefined;
+  const prevInk = prevInkId ? inks.find((i) => i.id === prevInkId) : undefined;
+  const nextInk = nextInkId ? inks.find((i) => i.id === nextInkId) : undefined;
 
   const navItems: Array<{
     key: RouteState['tab'];
@@ -336,6 +371,10 @@ export const App: React.FC = () => {
                 penId={route.penId}
                 allPens={pens}
                 allInks={inks}
+                prevPen={prevPen}
+                nextPen={nextPen}
+                currentIndex={currentPenIdx >= 0 ? currentPenIdx : undefined}
+                totalCount={activePenIds.length}
                 onBack={() => navigate({ tab: 'pens' })}
                 onOpenInk={(id) => navigate({ tab: 'inks', inkId: id })}
                 onOpenPen={(id) => navigate({ tab: 'pens', penId: id })}
@@ -357,6 +396,10 @@ export const App: React.FC = () => {
                 inkId={route.inkId}
                 allPens={pens}
                 allInks={inks}
+                prevInk={prevInk}
+                nextInk={nextInk}
+                currentIndex={currentInkIdx >= 0 ? currentInkIdx : undefined}
+                totalCount={activeInkIds.length}
                 onBack={() => navigate({ tab: 'inks' })}
                 onOpenPen={(id) => navigate({ tab: 'pens', penId: id })}
                 onOpenInk={(id) => navigate({ tab: 'inks', inkId: id })}

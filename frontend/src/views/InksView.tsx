@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   Plus,
   Search,
@@ -14,6 +14,11 @@ import { api } from '../api';
 import { useAuth } from '../AuthContext';
 import type { InkOut } from '../types';
 import {
+  getInkLibraryState,
+  saveInkLibraryState,
+  type InkSortKey,
+} from '../utils/navigationState';
+import {
   CompanyFilterCombobox,
   matchesRatingFilter,
   RatingFilterSelect,
@@ -27,18 +32,6 @@ interface Props {
   onRefresh: () => void;
   onSelectInk: (id: number) => void;
 }
-
-type InkSortKey =
-  | 'brand'
-  | 'name'
-  | 'rating'
-  | 'color_family'
-  | 'format'
-  | 'volume_ml'
-  | 'remaining_level'
-  | 'total_fills'
-  | 'total_days_inked'
-  | 'has_review';
 
 const INK_SORT_OPTIONS: Array<{ key: InkSortKey; label: string; defaultDir: 'asc' | 'desc' }> = [
   { key: 'brand', label: 'Ink Company', defaultDir: 'asc' },
@@ -90,22 +83,62 @@ const FORMAT_RANK: Record<string, number> = {
 
 export const InksView: React.FC<Props> = ({ inks, onRefresh, onSelectInk }) => {
   const { isAdmin } = useAuth();
+  const savedState = useMemo(() => getInkLibraryState(), []);
+
   // Separate Ink Company & Ink Name filters + facets
-  const [companyFilter, setCompanyFilter] = useState('');
-  const [companyExact, setCompanyExact] = useState(false);
-  const [nameQuery, setNameQuery] = useState('');
-  const [colorFilter, setColorFilter] = useState('all');
-  const [formatFilter, setFormatFilter] = useState('all');
-  const [levelFilter, setLevelFilter] = useState('all');
-  const [ratingFilter, setRatingFilter] = useState<RatingFilterValue>('all');
+  const [companyFilter, setCompanyFilter] = useState(savedState.companyFilter);
+  const [companyExact, setCompanyExact] = useState(savedState.companyExact);
+  const [nameQuery, setNameQuery] = useState(savedState.nameQuery);
+  const [colorFilter, setColorFilter] = useState(savedState.colorFilter);
+  const [formatFilter, setFormatFilter] = useState(savedState.formatFilter);
+  const [levelFilter, setLevelFilter] = useState(savedState.levelFilter);
+  const [ratingFilter, setRatingFilter] = useState<RatingFilterValue>(savedState.ratingFilter);
 
   // Column sorting
-  const [sortKey, setSortKey] = useState<InkSortKey>('brand');
+  const [sortKey, setSortKey] = useState<InkSortKey>(savedState.sortKey);
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('asc');
 
-  const [viewMode, setViewMode] = useState<'table' | 'swatches'>('table');
+  const [viewMode, setViewMode] = useState<'table' | 'swatches'>(savedState.viewMode);
   const [showAddModal, setShowAddModal] = useState(false);
   const [updatingFormatId, setUpdatingFormatId] = useState<number | null>(null);
+
+  // Sync state to persistent cache whenever filters/viewMode change
+  useEffect(() => {
+    saveInkLibraryState({
+      companyFilter,
+      companyExact,
+      nameQuery,
+      colorFilter,
+      formatFilter,
+      levelFilter,
+      ratingFilter,
+      sortKey,
+      sortDir,
+      viewMode,
+    });
+  }, [
+    companyFilter,
+    companyExact,
+    nameQuery,
+    colorFilter,
+    formatFilter,
+    levelFilter,
+    ratingFilter,
+    sortKey,
+    sortDir,
+    viewMode,
+  ]);
+
+  // Restore scroll position after mount and first render
+  useEffect(() => {
+    const state = getInkLibraryState();
+    if (state.scrollY > 0) {
+      const timer = setTimeout(() => {
+        window.scrollTo({ top: state.scrollY, behavior: 'instant' });
+      }, 35);
+      return () => clearTimeout(timer);
+    }
+  }, []);
 
   // Add Ink form state
   const [brand, setBrand] = useState('');
@@ -159,6 +192,16 @@ export const InksView: React.FC<Props> = ({ inks, onRefresh, onSelectInk }) => {
     setFormatFilter('all');
     setLevelFilter('all');
     setRatingFilter('all');
+    saveInkLibraryState({
+      companyFilter: '',
+      companyExact: false,
+      nameQuery: '',
+      colorFilter: 'all',
+      formatFilter: 'all',
+      levelFilter: 'all',
+      ratingFilter: 'all',
+      scrollY: 0,
+    });
   };
 
   const handleQuickRatingChange = async (inkId: number, nextRating: number | null) => {
@@ -269,6 +312,24 @@ export const InksView: React.FC<Props> = ({ inks, onRefresh, onSelectInk }) => {
     sortKey,
     sortDir,
   ]);
+
+  const handleSelectInk = (id: number) => {
+    saveInkLibraryState({
+      companyFilter,
+      companyExact,
+      nameQuery,
+      colorFilter,
+      formatFilter,
+      levelFilter,
+      ratingFilter,
+      sortKey,
+      sortDir,
+      viewMode,
+      scrollY: window.scrollY,
+      filteredInkIds: sortedAndFiltered.map((i) => i.id),
+    });
+    onSelectInk(id);
+  };
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -583,7 +644,7 @@ export const InksView: React.FC<Props> = ({ inks, onRefresh, onSelectInk }) => {
                   return (
                     <tr
                       key={ink.id}
-                      onClick={() => onSelectInk(ink.id)}
+                      onClick={() => handleSelectInk(ink.id)}
                       className="cursor-pointer hover:bg-zinc-50/90 dark:hover:bg-zinc-800/40 transition-colors"
                     >
                       <td className="py-2.5 pl-4 pr-3 font-medium text-zinc-700 dark:text-zinc-300">
@@ -704,7 +765,7 @@ export const InksView: React.FC<Props> = ({ inks, onRefresh, onSelectInk }) => {
           {sortedAndFiltered.map((ink) => (
             <div
               key={ink.id}
-              onClick={() => onSelectInk(ink.id)}
+              onClick={() => handleSelectInk(ink.id)}
               className="cursor-pointer group rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden hover:border-indigo-400 transition"
             >
               <div

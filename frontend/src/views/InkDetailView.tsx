@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import {
   ArrowLeft,
+  ChevronLeft,
+  ChevronRight,
   ExternalLink,
   Plus,
   Trash2,
@@ -22,6 +24,10 @@ interface Props {
   inkId: number;
   allPens: PenOut[];
   allInks: InkOut[];
+  prevInk?: InkOut;
+  nextInk?: InkOut;
+  currentIndex?: number;
+  totalCount?: number;
   onBack: () => void;
   onOpenPen: (penId: number) => void;
   onOpenInk: (inkId: number) => void;
@@ -60,6 +66,10 @@ export const InkDetailView: React.FC<Props> = ({
   inkId,
   allPens,
   allInks,
+  prevInk,
+  nextInk,
+  currentIndex,
+  totalCount,
   onBack,
   onOpenPen,
   onOpenInk,
@@ -109,8 +119,37 @@ export const InkDetailView: React.FC<Props> = ({
   }, [inkId]);
 
   useEffect(() => {
+    window.scrollTo({ top: 0, behavior: 'instant' });
     void loadDetail();
-  }, [loadDetail]);
+  }, [loadDetail, inkId]);
+
+  // Keyboard navigation: Left/Right arrows to step through inks
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === 'INPUT' ||
+          target.tagName === 'TEXTAREA' ||
+          target.tagName === 'SELECT' ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+      if (showMergeModal || showInkUpModal || editingMeta || editingSession || lightboxSample) {
+        return;
+      }
+      if (e.key === 'ArrowLeft' && prevInk) {
+        e.preventDefault();
+        onOpenInk(prevInk.id);
+      } else if (e.key === 'ArrowRight' && nextInk) {
+        e.preventDefault();
+        onOpenInk(nextInk.id);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [prevInk, nextInk, onOpenInk, showMergeModal, showInkUpModal, editingMeta, editingSession, lightboxSample]);
 
   if (loading || !detail) {
     return <div className="py-16 text-center text-xs text-zinc-400">Loading ink details...</div>;
@@ -177,15 +216,50 @@ export const InkDetailView: React.FC<Props> = ({
 
   return (
     <div className="space-y-6">
-      {/* Top Bar */}
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <button
-          onClick={onBack}
-          className="inline-flex items-center gap-1.5 text-xs font-medium text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100"
-        >
-          <ArrowLeft className="w-3.5 h-3.5" />
-          Back to Ink Library
-        </button>
+      {/* Top Bar & Next/Previous Navigation */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <div className="flex items-center gap-2.5">
+          <button
+            onClick={onBack}
+            className="inline-flex items-center gap-1.5 text-xs font-medium text-zinc-500 hover:text-zinc-900 dark:hover:text-zinc-100 transition-colors"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            Back to Ink Library
+          </button>
+
+          {(prevInk || nextInk || totalCount) && (
+            <div className="flex items-center gap-1 pl-2.5 border-l border-zinc-200 dark:border-zinc-800">
+              <button
+                onClick={() => prevInk && onOpenInk(prevInk.id)}
+                disabled={!prevInk}
+                className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-35 disabled:cursor-not-allowed transition"
+                title={prevInk ? `Previous: ${prevInk.brand} ${prevInk.name} (Left Arrow)` : 'No previous ink in list'}
+              >
+                <ChevronLeft className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Prev</span>
+              </button>
+
+              {currentIndex !== undefined && totalCount !== undefined && (
+                <span
+                  className="px-2 text-[11px] font-mono-num text-zinc-500 whitespace-nowrap"
+                  title="Position in current library filter"
+                >
+                  {currentIndex + 1} of {totalCount}
+                </span>
+              )}
+
+              <button
+                onClick={() => nextInk && onOpenInk(nextInk.id)}
+                disabled={!nextInk}
+                className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md border border-zinc-200 dark:border-zinc-800 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-35 disabled:cursor-not-allowed transition"
+                title={nextInk ? `Next: ${nextInk.brand} ${nextInk.name} (Right Arrow)` : 'No next ink in list'}
+              >
+                <span className="hidden sm:inline">Next</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          )}
+        </div>
         {isAdmin && (
           <div className="flex items-center gap-2">
             <button

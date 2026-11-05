@@ -294,11 +294,22 @@ def pull_from_cloud(db: Session = Depends(get_db)) -> dict[str, Any]:
 
         for table_name, model in MODEL_TABLES:
             records = cloud_session.execute(select(model)).scalars().all()
+            cloud_ids = set()
             count = 0
             for rec in records:
                 data = {c.name: getattr(rec, c.name) for c in rec.__table__.columns}
+                if "id" in data:
+                    cloud_ids.add(data["id"])
                 db.merge(model(**data))
                 count += 1
+
+            # Remove records deleted or merged away in the cloud
+            if "id" in [c.name for c in model.__table__.columns] and cloud_ids:
+                local_records = db.execute(select(model)).scalars().all()
+                for l_rec in local_records:
+                    if getattr(l_rec, "id") not in cloud_ids:
+                        db.delete(l_rec)
+
             db.commit()
             stats[table_name] = count
 
@@ -306,6 +317,24 @@ def pull_from_cloud(db: Session = Depends(get_db)) -> dict[str, Any]:
     except Exception as e:
         logger.exception("Error pulling records from cloud")
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=f"Database pull error: {e}")
+
+    # 3. Pull media files from S3 bucket (differential download)
+    s3_client, bucket = _get_cloud_s3_client()
+    downloaded_files_count = 0
+    if s3_client and UPLOADS_DIR.exists():
+        try:
+            paginator = s3_client.get_paginator("list_objects_v2")
+            for page in paginator.paginate(Bucket=bucket):
+                for obj in page.get("Contents", []):
+                    key = obj["Key"]
+                    dest = UPLOADS_DIR / key.replace("/", os.sep)
+                    if dest.exists() and dest.stat().st_size == obj["Size"]:
+                        continue
+                    dest.parent.mkdir(parents=True, exist_ok=True)
+                    s3_client.download_file(bucket, key, str(dest))
+                    downloaded_files_count += 1
+        except Exception as err:
+            logger.warning("Error syncing S3 media files during pull: %s", err)
 
     state = _load_sync_state()
     state["last_pull"] = datetime.now().isoformat()
@@ -316,5 +345,6 @@ def pull_from_cloud(db: Session = Depends(get_db)) -> dict[str, Any]:
         "status": "success",
         "backup": backup_record,
         "synced_tables": stats,
+        "downloaded_media_count": downloaded_files_count,
         "message": f"Cloud pull complete. Versioned backup saved as {backup_record['filename']}.",
     }

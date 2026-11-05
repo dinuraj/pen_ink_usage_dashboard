@@ -1,5 +1,18 @@
 [
   {
+    "version": 13,
+    "filename": "pen_ink_20261105_121602_v13.db",
+    "relative_path": "backups/db/pen_ink_20261105_121602_v13.db",
+    "timestamp": "2026-11-05T12:16:02.875297",
+    "created_at_formatted": "Nov 05, 2026 12:16 PM",
+    "trigger": "sync_pull",
+    "pens_count": 134,
+    "inks_count": 108,
+    "sessions_count": 268,
+    "samples_count": 268,
+    "size_bytes": 446464
+  },
+  {
     "version": 12,
     "filename": "pen_ink_20261102_185222_v12.db",
     "relative_path": "backups/db/pen_ink_20261102_185222_v12.db",

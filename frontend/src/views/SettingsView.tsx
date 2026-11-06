@@ -222,7 +222,12 @@ export const SettingsView: React.FC<Props> = ({ settings, onRefreshAll, onOpenLo
           </div>
 
           <div className="flex items-center gap-2">
-            {syncStatus?.cloud_connected ? (
+            {syncStatus?.is_cloud ? (
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800/50">
+                <span className="w-2 h-2 rounded-full bg-indigo-500 animate-pulse" />
+                Cloud Deployment (Supabase)
+              </span>
+            ) : syncStatus?.cloud_connected ? (
               <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800/50">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                 Cloud Connected
@@ -251,27 +256,42 @@ export const SettingsView: React.FC<Props> = ({ settings, onRefreshAll, onOpenLo
 
         {/* Sync Controls */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-          <button
-            type="button"
-            disabled={!syncStatus?.cloud_connected || syncActionLoading !== null || !isAdmin}
-            onClick={handlePushToCloud}
-            className="flex items-center justify-center gap-2 p-3 rounded-xl border border-indigo-200 dark:border-indigo-900/50 bg-indigo-50/60 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 disabled:opacity-50 text-xs font-medium transition"
-          >
-            <ArrowUpRight className="w-4 h-4 shrink-0" />
-            <span>
-              {syncActionLoading === 'push' ? 'Pushing to Cloud...' : 'Push Local → Cloud'}
-            </span>
-          </button>
+          {syncStatus?.is_cloud ? (
+            <a
+              href={api.sync.exportSqliteUrl}
+              download
+              className="flex items-center justify-center gap-2 p-3 rounded-xl border border-indigo-200 dark:border-indigo-900/50 bg-indigo-50/60 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 text-xs font-medium transition text-center"
+            >
+              <Download className="w-4 h-4 shrink-0" />
+              <span>Download Cloud DB (.db)</span>
+            </a>
+          ) : (
+            <button
+              type="button"
+              disabled={!syncStatus?.cloud_connected || syncActionLoading !== null || !isAdmin}
+              onClick={handlePushToCloud}
+              className="flex items-center justify-center gap-2 p-3 rounded-xl border border-indigo-200 dark:border-indigo-900/50 bg-indigo-50/60 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/50 disabled:opacity-50 text-xs font-medium transition"
+            >
+              <ArrowUpRight className="w-4 h-4 shrink-0" />
+              <span>
+                {syncActionLoading === 'push' ? 'Pushing to Cloud...' : 'Push Local → Cloud'}
+              </span>
+            </button>
+          )}
 
           <button
             type="button"
-            disabled={!syncStatus?.cloud_connected || syncActionLoading !== null || !isAdmin}
+            disabled={(syncActionLoading !== null || !isAdmin) || (!syncStatus?.is_cloud && !syncStatus?.cloud_connected)}
             onClick={handlePullFromCloud}
             className="flex items-center justify-center gap-2 p-3 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-800/60 text-zinc-800 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 disabled:opacity-50 text-xs font-medium transition"
           >
             <ArrowDownLeft className="w-4 h-4 shrink-0" />
             <span>
-              {syncActionLoading === 'pull' ? 'Pulling from Cloud...' : 'Pull Cloud → Local'}
+              {syncActionLoading === 'pull'
+                ? 'Pulling from Cloud...'
+                : syncStatus?.is_cloud
+                ? 'Snapshot for Local Sync'
+                : 'Pull Cloud → Local'}
             </span>
           </button>
 
@@ -350,6 +370,7 @@ export const SettingsView: React.FC<Props> = ({ settings, onRefreshAll, onOpenLo
                     <th className="py-2 px-3 font-medium">Records</th>
                     <th className="py-2 px-3 font-medium">Size</th>
                     <th className="py-2 px-3 font-medium">Timestamp</th>
+                    <th className="py-2 px-3 font-medium text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800/60 font-mono-num text-[11px]">
@@ -367,13 +388,28 @@ export const SettingsView: React.FC<Props> = ({ settings, onRefreshAll, onOpenLo
                         {b.trigger.replace('_', ' ')}
                       </td>
                       <td className="py-2 px-3 text-zinc-500">
-                        {b.counts.pens} pens &bull; {b.counts.inks} inks &bull; {b.counts.sessions} sess
+                        {(b.counts?.pens ?? b.pens_count ?? 0)} pens &bull;{' '}
+                        {(b.counts?.inks ?? b.inks_count ?? 0)} inks &bull;{' '}
+                        {(b.counts?.sessions ?? b.sessions_count ?? 0)} sess
                       </td>
                       <td className="py-2 px-3 text-zinc-500">
                         {formatFileSize(b.size_bytes)}
                       </td>
                       <td className="py-2 px-3 text-zinc-400 font-sans">
-                        {new Date(b.created_at).toLocaleString()}
+                        {b.created_at_formatted ||
+                          (b.created_at || b.timestamp
+                            ? new Date(b.created_at || b.timestamp!).toLocaleString()
+                            : 'N/A')}
+                      </td>
+                      <td className="py-2 px-3 text-right">
+                        <a
+                          href={b.download_url || api.sync.getDownloadUrl(b.filename)}
+                          download
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-sans font-medium border border-zinc-200 dark:border-zinc-700 hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-700 dark:text-zinc-300 transition"
+                        >
+                          <Download className="w-3 h-3" />
+                          <span>Download</span>
+                        </a>
                       </td>
                     </tr>
                   ))}

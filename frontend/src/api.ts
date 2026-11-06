@@ -328,5 +328,7 @@ export const api = {
     createBackup: () => requestJson<{ status: string; backup: BackupRecord }>('/api/sync/backup', { method: 'POST' }),
     push: () => requestJson<SyncResult>('/api/sync/push', { method: 'POST' }),
     pull: () => requestJson<SyncResult>('/api/sync/pull', { method: 'POST' }),
+    getDownloadUrl: (filename: string) => `/api/sync/backups/${encodeURIComponent(filename)}/download`,
+    exportSqliteUrl: '/api/sync/export/sqlite',
   },
 };

@@ -1,4 +1,4 @@
-# Pens Without Photos (31 remaining)
+# Pens Without Photos (30 remaining)
 
 | ID | Brand | Model | Color | Nib |
 |---|---|---|---|---|
@@ -30,6 +30,5 @@
 | 60 | Oliver | 21 | Hooded Classic | F |
 | 132 | Oliver | Demonstrator | Clear | M |
 | 97 | Parker | Frontier | Matte Black (Kanwrite Nib) | M |
-| 32 | Ranga | Model 4C | Blue-Pink Swirl | M |
 | 141 | Reynolds | Baoer | Classic | M |
 | 109 | Wing Sung | 699 | Vacuum Blue Acrylic | M |

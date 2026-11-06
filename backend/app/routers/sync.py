@@ -11,6 +11,7 @@ from typing import Any
 import boto3
 from botocore.config import Config
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import sqlalchemy
 from sqlalchemy import create_engine, select, text
@@ -28,7 +29,7 @@ from ..config import (
     S3_SECRET_ACCESS_KEY,
     UPLOADS_DIR,
 )
-from ..database import Base, get_db
+from ..database import Base, get_db, is_sqlite
 from ..models import (
     AppSetting,
     Ink,
@@ -42,7 +43,7 @@ from ..models import (
     UsageSession,
     WritingSample,
 )
-from ..services.backup import create_database_backup, list_backups
+from ..services.backup import BACKUP_DIR, create_database_backup, list_backups
 
 logger = logging.getLogger(__name__)
 
@@ -86,11 +87,11 @@ def _get_cloud_db_url() -> str:
 
 
 def _get_cloud_s3_client():
-    endpoint = os.getenv("S3_ENDPOINT_URL", "").strip()
-    key_id = os.getenv("S3_ACCESS_KEY_ID", "").strip()
-    secret = os.getenv("S3_SECRET_ACCESS_KEY", "").strip()
-    bucket = os.getenv("S3_BUCKET", "pen-ink-uploads").strip()
-    region = os.getenv("S3_REGION", "ap-northeast-2").strip()
+    endpoint = os.getenv("S3_ENDPOINT_URL", S3_ENDPOINT_URL).strip()
+    key_id = os.getenv("S3_ACCESS_KEY_ID", S3_ACCESS_KEY_ID).strip()
+    secret = os.getenv("S3_SECRET_ACCESS_KEY", S3_SECRET_ACCESS_KEY).strip()
+    bucket = os.getenv("S3_BUCKET", S3_BUCKET).strip()
+    region = os.getenv("S3_REGION", S3_REGION).strip()
 
     if not endpoint or not key_id or not secret:
         env_render = BASE_DIR / ".env.render"
@@ -110,15 +111,19 @@ def _get_cloud_s3_client():
     if not endpoint or not key_id or not secret:
         return None, bucket
 
-    client = boto3.client(
-        "s3",
-        endpoint_url=endpoint,
-        aws_access_key_id=key_id,
-        aws_secret_access_key=secret,
-        region_name=region,
-        config=Config(signature_version="s3v4"),
-    )
-    return client, bucket
+    try:
+        client = boto3.client(
+            "s3",
+            endpoint_url=endpoint,
+            aws_access_key_id=key_id,
+            aws_secret_access_key=secret,
+            region_name=region,
+            config=Config(signature_version="s3v4"),
+        )
+        return client, bucket
+    except Exception as err:
+        logger.warning("Could not initialize S3 client: %s", err)
+        return None, bucket
 
 
 def _load_sync_state() -> dict[str, Any]:
@@ -155,26 +160,88 @@ def get_sync_status(db: Session = Depends(get_db)) -> dict[str, Any]:
     backups = list_backups()
 
     return {
+        "is_cloud": not is_sqlite,
         "cloud_configured": cloud_configured,
         "cloud_connected": cloud_connected,
         "connection_error": error_msg,
         "last_push": state.get("last_push"),
         "last_pull": state.get("last_pull"),
         "backups_count": len(backups),
-        "recent_backups": backups[:10],
+        "recent_backups": backups[:15],
     }
 
 
 @router.post("/backup", dependencies=[Depends(require_admin)])
-def trigger_backup() -> dict[str, Any]:
-    """Create a standalone timestamped backup of the database."""
-    backup_record = create_database_backup(trigger="manual_backup")
-    return {"status": "ok", "backup": backup_record}
+def trigger_backup(db: Session = Depends(get_db)) -> dict[str, Any]:
+    """Create a standalone timestamped backup of the database (SQLite or PostgreSQL)."""
+    try:
+        backup_record = create_database_backup(trigger="manual_backup", db_session=db)
+        return {"status": "ok", "backup": backup_record}
+    except Exception as err:
+        logger.exception("Failed to create database backup")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to create database backup: {err}",
+        )
+
+
+@router.get("/backups/{filename}/download")
+def download_backup(filename: str) -> FileResponse:
+    """Download a versioned database backup .db file."""
+    safe_name = os.path.basename(filename)
+    if not safe_name.endswith(".db"):
+        raise HTTPException(status_code=400, detail="Invalid backup file name")
+
+    file_path = BACKUP_DIR / safe_name
+    if not file_path.exists():
+        # Check if stored in S3
+        s3_client, bucket = _get_cloud_s3_client()
+        if s3_client:
+            try:
+                BACKUP_DIR.mkdir(parents=True, exist_ok=True)
+                s3_client.download_file(bucket, f"backups/db/{safe_name}", str(file_path))
+            except Exception as err:
+                logger.warning("Could not download %s from S3: %s", safe_name, err)
+
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail=f"Backup file {safe_name} not found")
+
+    return FileResponse(
+        path=str(file_path),
+        filename=safe_name,
+        media_type="application/x-sqlite3",
+    )
+
+
+@router.get("/export/sqlite")
+def export_sqlite(db: Session = Depends(get_db)) -> FileResponse:
+    """Export current active database as a fresh downloadable SQLite file."""
+    try:
+        backup_record = create_database_backup(trigger="export_sqlite", db_session=db)
+        file_path = BACKUP_DIR / backup_record["filename"]
+        download_name = f"pen_ink_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.db"
+        return FileResponse(
+            path=str(file_path),
+            filename=download_name,
+            media_type="application/x-sqlite3",
+        )
+    except Exception as err:
+        logger.exception("Failed to export database as SQLite")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to export SQLite database: {err}",
+        )
 
 
 @router.post("/push", dependencies=[Depends(require_admin)])
 def push_to_cloud(db: Session = Depends(get_db)) -> dict[str, Any]:
     """Take an atomic backup, then push local tables and media files to Supabase."""
+    if not is_sqlite:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Push is only supported when running the local SQLite instance. The cloud instance is already using Supabase PostgreSQL.",
+        )
+
     cloud_url = _get_cloud_db_url()
     if not cloud_url or cloud_url.startswith("sqlite"):
         raise HTTPException(
@@ -183,7 +250,7 @@ def push_to_cloud(db: Session = Depends(get_db)) -> dict[str, Any]:
         )
 
     # 1. Create versioned backup before modifying/uploading anything
-    backup_record = create_database_backup(trigger="sync_push")
+    backup_record = create_database_backup(trigger="sync_push", db_session=db)
 
     # 2. Push database records
     stats = {}
@@ -275,7 +342,18 @@ def push_to_cloud(db: Session = Depends(get_db)) -> dict[str, Any]:
 
 @router.post("/pull", dependencies=[Depends(require_admin)])
 def pull_from_cloud(db: Session = Depends(get_db)) -> dict[str, Any]:
-    """Take an atomic backup, then pull changes from Supabase into local database."""
+    """Pull changes from Supabase into local database, or snapshot cloud if running in cloud mode."""
+    if not is_sqlite:
+        # Running on Render/Cloud: snapshot cloud database to SQLite for local download
+        backup_record = create_database_backup(trigger="cloud_snapshot", db_session=db)
+        return {
+            "status": "success",
+            "backup": backup_record,
+            "download_url": f"/api/sync/backups/{backup_record['filename']}/download",
+            "message": f"Cloud database snapshot {backup_record['filename']} created! You can download it directly below to copy to your local machine.",
+        }
+
+    # Running in local SQLite mode
     cloud_url = _get_cloud_db_url()
     if not cloud_url or cloud_url.startswith("sqlite"):
         raise HTTPException(
@@ -284,13 +362,16 @@ def pull_from_cloud(db: Session = Depends(get_db)) -> dict[str, Any]:
         )
 
     # 1. Create versioned backup before pulling
-    backup_record = create_database_backup(trigger="sync_pull")
+    backup_record = create_database_backup(trigger="sync_pull", db_session=db)
 
     # 2. Pull records from cloud into local SQLite
     stats = {}
     try:
         cloud_engine = create_engine(cloud_url, pool_pre_ping=True)
         cloud_session = Session(cloud_engine)
+
+        # Disable foreign keys temporarily during bulk sync to prevent FK constraint failures on merges/deletes
+        db.execute(text("PRAGMA foreign_keys = OFF;"))
 
         for table_name, model in MODEL_TABLES:
             records = cloud_session.execute(select(model)).scalars().all()
@@ -313,6 +394,7 @@ def pull_from_cloud(db: Session = Depends(get_db)) -> dict[str, Any]:
             db.commit()
             stats[table_name] = count
 
+        db.execute(text("PRAGMA foreign_keys = ON;"))
         cloud_session.close()
     except Exception as e:
         logger.exception("Error pulling records from cloud")
@@ -327,6 +409,9 @@ def pull_from_cloud(db: Session = Depends(get_db)) -> dict[str, Any]:
             for page in paginator.paginate(Bucket=bucket):
                 for obj in page.get("Contents", []):
                     key = obj["Key"]
+                    # Only download media folders into uploads directory
+                    if not any(key.startswith(f"{cat}/") for cat in ("pens", "samples", "pages", "pdfs", "swatches", "demo")):
+                        continue
                     dest = UPLOADS_DIR / key.replace("/", os.sep)
                     if dest.exists() and dest.stat().st_size == obj["Size"]:
                         continue
@@ -346,5 +431,5 @@ def pull_from_cloud(db: Session = Depends(get_db)) -> dict[str, Any]:
         "backup": backup_record,
         "synced_tables": stats,
         "downloaded_media_count": downloaded_files_count,
-        "message": f"Cloud pull complete. Versioned backup saved as {backup_record['filename']}.",
+        "message": f"Cloud pull complete. Local database and {downloaded_files_count} media files updated. Versioned backup saved as {backup_record['filename']}.",
     }

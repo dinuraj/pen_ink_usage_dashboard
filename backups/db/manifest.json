@@ -1,5 +1,28 @@
 [
   {
+    "version": 14,
+    "filename": "pen_ink_20261106_212656_v14.db",
+    "relative_path": "backups/db/pen_ink_20261106_212656_v14.db",
+    "download_url": "/api/sync/backups/pen_ink_20261106_212656_v14.db/download",
+    "timestamp": "2026-11-06T21:26:56.320203",
+    "created_at": "2026-11-06T21:26:56.320203",
+    "created_at_formatted": "Nov 06, 2026 09:26 PM",
+    "trigger": "sync_pull",
+    "pens_count": 118,
+    "inks_count": 107,
+    "sessions_count": 268,
+    "samples_count": 268,
+    "size_bytes": 471040,
+    "counts": {
+      "pens": 118,
+      "inks": 107,
+      "notebooks": 0,
+      "sessions": 268,
+      "samples": 268,
+      "scans": 1
+    }
+  },
+  {
     "version": 13,
     "filename": "pen_ink_20261105_121602_v13.db",
     "relative_path": "backups/db/pen_ink_20261105_121602_v13.db",

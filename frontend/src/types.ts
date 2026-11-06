@@ -395,12 +395,20 @@ export interface AppSettingsStatus {
 
 export interface BackupRecord {
   filename: string;
-  path: string;
+  path?: string;
+  relative_path?: string;
+  download_url?: string;
   version: number;
   trigger: string;
-  created_at: string;
+  created_at?: string;
+  timestamp?: string;
+  created_at_formatted?: string;
   size_bytes: number;
-  counts: {
+  pens_count?: number;
+  inks_count?: number;
+  sessions_count?: number;
+  samples_count?: number;
+  counts?: {
     pens: number;
     inks: number;
     notebooks: number;
@@ -411,6 +419,7 @@ export interface BackupRecord {
 }
 
 export interface SyncStatus {
+  is_cloud?: boolean;
   cloud_configured: boolean;
   cloud_connected: boolean;
   connection_error?: string | null;

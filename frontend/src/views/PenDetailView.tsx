@@ -39,6 +39,7 @@ interface Props {
   onOpenPen: (penId: number) => void;
   onOpenScanPage: (batchId: number, pageNumber: number, sampleId: number) => void;
   onGlobalRefresh: () => void;
+  onOpenPairing?: (penId: number) => void;
 }
 
 export const PenDetailView: React.FC<Props> = ({
@@ -54,6 +55,7 @@ export const PenDetailView: React.FC<Props> = ({
   onOpenPen,
   onOpenScanPage,
   onGlobalRefresh,
+  onOpenPairing,
 }) => {
   const { isAdmin } = useAuth();
   const [detail, setDetail] = useState<PenDetailResponse | null>(null);
@@ -624,15 +626,28 @@ export const PenDetailView: React.FC<Props> = ({
                     Currently clean and stored in cabinet.{' '}
                     {pen.last_cleaned_date && `Last cleaned ${pen.last_cleaned_date}.`}
                   </span>
-                  {isAdmin && (
+                  <div className="flex items-center gap-2">
                     <button
-                      onClick={() => setShowInkUpModal(true)}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-medium hover:bg-indigo-500"
+                      onClick={() => {
+                        if (onOpenPairing) onOpenPairing(pen.id);
+                        else window.location.hash = `#/pairing?pen=${pen.id}`;
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-indigo-200 dark:border-indigo-800/60 bg-indigo-50/50 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 text-xs font-medium transition"
+                      title="Find the ideal ink to pair with this pen in Pairing Studio"
                     >
-                      <Plus className="w-3.5 h-3.5" />
-                      Ink Up This Pen
+                      <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+                      Find Ink in Studio
                     </button>
-                  )}
+                    {isAdmin && (
+                      <button
+                        onClick={() => setShowInkUpModal(true)}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-indigo-600 text-white text-xs font-medium hover:bg-indigo-500"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        Ink Up This Pen
+                      </button>
+                    )}
+                  </div>
                 </>
               )}
             </div>

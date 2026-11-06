@@ -8,6 +8,7 @@ from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from PIL import Image
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session, joinedload
 
 from ..database import get_db
@@ -136,6 +137,8 @@ def update_and_correct_sample(
     # 3. Sample metadata updates
     if payload.sample_date is not None:
         ws.sample_date = payload.sample_date
+    if payload.rating is not None:
+        ws.rating = payload.rating
     if payload.transcription is not None:
         ws.transcription = payload.transcription
     if payload.caption is not None:
@@ -187,6 +190,24 @@ def update_and_correct_sample(
                 )
         ws.crop_box_json = new_box_json
 
+    db.commit()
+    db.expire_all()
+    return serialize_writing_sample(_load_sample(db, sample_id))
+
+
+class SampleRatingUpdate(BaseModel):
+    rating: int | None = Field(default=None, ge=1, le=5)
+
+
+@router.patch("/{sample_id}/rating", response_model=WritingSampleOut)
+def rate_writing_sample(
+    sample_id: int,
+    payload: SampleRatingUpdate,
+    db: Session = Depends(get_db),
+) -> WritingSampleOut:
+    """Quickly update the 1-5 star satisfaction rating for a writing sample."""
+    ws = _load_sample(db, sample_id)
+    ws.rating = payload.rating
     db.commit()
     db.expire_all()
     return serialize_writing_sample(_load_sample(db, sample_id))

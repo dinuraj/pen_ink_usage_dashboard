@@ -16,32 +16,49 @@ from .auth import is_authenticated_admin, router as auth_router
 from .config import APP_ACCESS_TOKEN, FRONTEND_DIST_DIR, STORAGE_BACKEND, UPLOADS_DIR
 from .database import Base, SessionLocal, engine, is_sqlite
 from .models import Pen
-from .routers import analytics, inks, notebooks, pens, samples, scans, sessions, settings, sync
+from .routers import analytics, inks, notebooks, pairing, pens, samples, scans, sessions, settings, sync
 from .storage import storage
 
 
 
 
-def _ensure_sqlite_schema_migrations() -> None:
-    """Apply lightweight additive column migrations for existing SQLite databases."""
+def _ensure_schema_migrations() -> None:
+    """Apply lightweight additive column migrations for SQLite and PostgreSQL databases."""
     with engine.begin() as conn:
-        pen_cols = [row[1] for row in conn.execute(text("PRAGMA table_info(pens)")).fetchall()]
-        if pen_cols:
-            if "tags" not in pen_cols:
-                conn.execute(text("ALTER TABLE pens ADD COLUMN tags VARCHAR(250) NOT NULL DEFAULT ''"))
-            if "rating" not in pen_cols:
-                conn.execute(text("ALTER TABLE pens ADD COLUMN rating INTEGER"))
+        if is_sqlite:
+            pen_cols = [row[1] for row in conn.execute(text("PRAGMA table_info(pens)")).fetchall()]
+            if pen_cols:
+                if "tags" not in pen_cols:
+                    conn.execute(text("ALTER TABLE pens ADD COLUMN tags VARCHAR(250) NOT NULL DEFAULT ''"))
+                if "rating" not in pen_cols:
+                    conn.execute(text("ALTER TABLE pens ADD COLUMN rating INTEGER"))
 
-        ink_cols = [row[1] for row in conn.execute(text("PRAGMA table_info(inks)")).fetchall()]
-        if ink_cols and "rating" not in ink_cols:
-            conn.execute(text("ALTER TABLE inks ADD COLUMN rating INTEGER"))
+            ink_cols = [row[1] for row in conn.execute(text("PRAGMA table_info(inks)")).fetchall()]
+            if ink_cols and "rating" not in ink_cols:
+                conn.execute(text("ALTER TABLE inks ADD COLUMN rating INTEGER"))
+
+            session_cols = [row[1] for row in conn.execute(text("PRAGMA table_info(usage_sessions)")).fetchall()]
+            if session_cols and "rating" not in session_cols:
+                conn.execute(text("ALTER TABLE usage_sessions ADD COLUMN rating INTEGER"))
+
+            sample_cols = [row[1] for row in conn.execute(text("PRAGMA table_info(writing_samples)")).fetchall()]
+            if sample_cols and "rating" not in sample_cols:
+                conn.execute(text("ALTER TABLE writing_samples ADD COLUMN rating INTEGER"))
+        else:
+            try:
+                conn.execute(text("ALTER TABLE pens ADD COLUMN IF NOT EXISTS tags VARCHAR(250) NOT NULL DEFAULT ''"))
+                conn.execute(text("ALTER TABLE pens ADD COLUMN IF NOT EXISTS rating INTEGER"))
+                conn.execute(text("ALTER TABLE inks ADD COLUMN IF NOT EXISTS rating INTEGER"))
+                conn.execute(text("ALTER TABLE usage_sessions ADD COLUMN IF NOT EXISTS rating INTEGER"))
+                conn.execute(text("ALTER TABLE writing_samples ADD COLUMN IF NOT EXISTS rating INTEGER"))
+            except Exception:
+                pass
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):  # noqa: ANN001, ARG001
     Base.metadata.create_all(bind=engine)
-    if is_sqlite:
-        _ensure_sqlite_schema_migrations()
+    _ensure_schema_migrations()
     if os.getenv("AUTO_SEED_DEMO", "false").lower() == "true":
         db = SessionLocal()
         try:
@@ -89,8 +106,8 @@ async def access_token_middleware(request: Request, call_next):  # noqa: ANN001
     if request.method in ("GET", "HEAD", "OPTIONS"):
         return await call_next(request)
 
-    # Auth endpoints (login/logout/status) must be accessible
-    if path.startswith("/api/auth/"):
+    # Auth endpoints and sommelier consultation are publicly accessible
+    if path.startswith("/api/auth/") or path == "/api/pairing/sommelier":
         return await call_next(request)
 
     # State-changing operations (POST / PUT / PATCH / DELETE) require Admin authorization
@@ -115,6 +132,7 @@ app.include_router(notebooks.router)
 app.include_router(sessions.router)
 app.include_router(scans.router)
 app.include_router(samples.router)
+app.include_router(pairing.router)
 app.include_router(settings.router)
 
 

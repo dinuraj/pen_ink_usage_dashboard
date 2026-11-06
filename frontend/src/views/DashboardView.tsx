@@ -34,6 +34,7 @@ interface Props {
   onOpenInk: (id: number) => void;
   onOpenScanStudio: () => void;
   onOpenQuickInkUp: () => void;
+  onOpenPairingStudio?: () => void;
 }
 
 export const DashboardView: React.FC<Props> = ({
@@ -43,6 +44,7 @@ export const DashboardView: React.FC<Props> = ({
   onOpenInk,
   onOpenScanStudio,
   onOpenQuickInkUp,
+  onOpenPairingStudio,
 }) => {
   const { kpis } = data;
   const [sortBy, setSortBy] = useState<'days_inked' | 'pen' | 'ink'>('days_inked');
@@ -95,6 +97,15 @@ export const DashboardView: React.FC<Props> = ({
             <FileDown className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
             Share PDF
           </a>
+          {onOpenPairingStudio && (
+            <button
+              onClick={onOpenPairingStudio}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-indigo-200 dark:border-indigo-800/60 bg-indigo-50/50 dark:bg-indigo-950/30 text-xs font-medium text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 shadow-2xs transition"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+              Pairing Studio
+            </button>
+          )}
           <button
             onClick={onOpenScanStudio}
             className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 text-xs font-medium text-zinc-800 dark:text-zinc-200 hover:bg-zinc-50 dark:hover:bg-zinc-800 shadow-2xs"
@@ -210,6 +221,34 @@ export const DashboardView: React.FC<Props> = ({
           <p className="text-[11px] text-zinc-400 mt-1">Flush nudge threshold: 28 days</p>
         </div>
       </div>
+
+      {/* Pairing Studio Callout Banner */}
+      {onOpenPairingStudio && (
+        <div className="rounded-xl border border-indigo-100 dark:border-indigo-950/70 bg-gradient-to-r from-indigo-50/70 via-white to-purple-50/50 dark:from-indigo-950/30 dark:via-zinc-900 dark:to-purple-950/20 p-4 flex flex-wrap items-center justify-between gap-3 shadow-2xs">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+              <Sparkles className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="text-xs font-semibold text-zinc-900 dark:text-zinc-100 flex items-center gap-1.5">
+                <span>Looking for your next pen &amp; ink pairing?</span>
+                <span className="text-[10px] uppercase font-mono tracking-wider px-1.5 py-0.5 rounded bg-indigo-100 dark:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 font-semibold">
+                  New Assistant
+                </span>
+              </div>
+              <p className="text-[11px] text-zinc-500 dark:text-zinc-400 mt-0.5">
+                Harmonize your active palette, discover neglected pens, and explore match scores with AI sommelier notes.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={onOpenPairingStudio}
+            className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium shadow-xs transition"
+          >
+            Launch Pairing Studio &rarr;
+          </button>
+        </div>
+      )}
 
       {/* Currently Inked Command Table */}
       <div className="rounded-xl border border-zinc-200 dark:border-zinc-800 bg-white dark:bg-zinc-900 overflow-hidden">

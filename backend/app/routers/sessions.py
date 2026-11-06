@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session, joinedload
 
 from ..database import get_db
@@ -156,9 +157,32 @@ def update_session_endpoint(
     if "date_cleaned" in payload.model_fields_set and sess.end_status != "active":
         sess.date_cleaned = payload.date_cleaned
 
+    if payload.rating is not None:
+        sess.rating = payload.rating
+
     if payload.session_notes is not None:
         sess.session_notes = payload.session_notes
 
+    db.commit()
+    db.expire_all()
+    return serialize_session(_load_session(db, session_id))
+
+
+class SessionRatingUpdate(BaseModel):
+    rating: int | None = Field(None, ge=1, le=5)
+
+
+@router.patch("/{session_id}/rating", response_model=SessionOut)
+def rate_usage_session(
+    session_id: int,
+    payload: SessionRatingUpdate | None = None,
+    rating: int | None = Query(None, ge=1, le=5),
+    db: Session = Depends(get_db),
+) -> SessionOut:
+    """Quickly update the 1-5 star satisfaction rating for a usage session/pairing."""
+    sess = _load_session(db, session_id)
+    final_rating = payload.rating if (payload is not None and payload.rating is not None) else rating
+    sess.rating = final_rating
     db.commit()
     db.expire_all()
     return serialize_session(_load_session(db, session_id))

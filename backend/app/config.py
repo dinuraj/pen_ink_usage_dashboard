@@ -61,6 +61,6 @@ if not APP_ACCESS_TOKEN:
                 APP_ACCESS_TOKEN = line.split("=", 1)[1].strip()
                 break
 
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-flash-lite-latest")
 FRONTEND_DIST_DIR = BASE_DIR / "frontend" / "dist"
 

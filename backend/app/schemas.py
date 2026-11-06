@@ -242,6 +242,7 @@ class WritingSampleOut(BaseModel):
     image_url: str
     crop_box_json: str = ""
     sample_date: date
+    rating: int | None = None
     transcription: str = ""
     caption: str = ""
     pen: PenBrief
@@ -254,6 +255,7 @@ class SessionCreate(BaseModel):
     date_inked: date
     date_cleaned: date | None = None
     end_status: Literal["active", "cleaned", "emptied"] = "active"
+    rating: int | None = Field(default=None, ge=1, le=5)
     session_notes: str = ""
     close_previous_active: bool = True
     previous_close_date: date | None = None
@@ -280,6 +282,7 @@ class SessionOut(BaseModel):
     end_status: str
     days_active: int
     refill_count: int
+    rating: int | None = None
     session_notes: str
     pen: PenBrief
     ink: InkBrief
@@ -329,6 +332,7 @@ class SessionUpdate(BaseModel):
     date_inked: date | None = None
     date_cleaned: date | None = None
     end_status: Literal["active", "cleaned", "emptied"] | None = None
+    rating: int | None = Field(default=None, ge=1, le=5)
     session_notes: str | None = None
 
 
@@ -343,6 +347,7 @@ class SampleCorrectionUpdate(BaseModel):
     end_status: Literal["active", "cleaned", "emptied"] | None = None
     transcription: str | None = None
     caption: str | None = None
+    rating: int | None = Field(default=None, ge=1, le=5)
     session_notes: str | None = None
     crop_box: CropBox | None = None
 

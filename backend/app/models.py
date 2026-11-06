@@ -114,6 +114,7 @@ class UsageSession(Base):
         String(30), default="active", nullable=False, index=True
     )  # active, cleaned, emptied
     refill_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    rating: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 1..5 stars for pairing satisfaction
     session_notes: Mapped[str] = mapped_column(Text, default="", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
@@ -205,6 +206,7 @@ class WritingSample(Base):
         String(255), default="", nullable=False
     )  # JSON {"x":0..1, "y":0..1, "w":0..1, "h":0..1}
     sample_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    rating: Mapped[int | None] = mapped_column(Integer, nullable=True)  # 1..5 stars for writing sample satisfaction
     transcription: Mapped[str] = mapped_column(Text, default="", nullable=False)
     caption: Mapped[str] = mapped_column(String(300), default="", nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)

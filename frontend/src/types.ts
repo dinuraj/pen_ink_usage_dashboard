@@ -99,6 +99,7 @@ export interface WritingSampleOut {
   image_url: string;
   crop_box_json: string;
   sample_date: string;
+  rating?: number | null;
   transcription: string;
   caption: string;
   pen: PenBrief;
@@ -114,6 +115,7 @@ export interface SessionOut {
   end_status: 'active' | 'cleaned' | 'emptied' | string;
   days_active: number;
   refill_count: number;
+  rating?: number | null;
   session_notes: string;
   pen: PenBrief;
   ink: InkBrief;
@@ -441,4 +443,128 @@ export interface AuthStatus {
   is_admin: boolean;
   auth_enabled: boolean;
 }
+
+// ---------- Pairing Studio Types ----------
+
+export interface ActivePaletteItem {
+  session_id: number;
+  pen_id: number;
+  pen_name: string;
+  ink_id: number;
+  ink_name: string;
+  ink_brand: string;
+  hex_color: string;
+  color_family: string;
+  date_inked: string | null;
+}
+
+export interface ActivePaletteResponse {
+  active_count: number;
+  active_items: ActivePaletteItem[];
+  active_color_families: string[];
+  missing_color_families: string[];
+  recommended_complements: string[];
+}
+
+export interface CandidatePen {
+  id: number;
+  brand: string;
+  model: string;
+  color_variant: string;
+  display_name: string;
+  nib_size: string;
+  nib_material: string;
+  filling_mechanism: string;
+  status: string;
+  tags: string[];
+  rating: number | null;
+  primary_photo_url: string | null;
+  is_currently_inked: boolean;
+  active_ink_name?: string | null;
+  last_inked_date: string | null;
+  last_cleaned_date: string | null;
+  days_neglected: number;
+  total_lifetime_fills: number;
+}
+
+export interface CandidateInk {
+  id: number;
+  brand: string;
+  name: string;
+  display_name: string;
+  color_family: string;
+  hex_color: string;
+  format: string;
+  volume_ml: number;
+  remaining_level: string;
+  rating: number | null;
+  properties_tags: string[];
+  mountain_of_ink_url: string;
+  is_currently_inked: boolean;
+  active_pens_count: number;
+  last_used_date: string | null;
+  days_neglected: number;
+  total_lifetime_fills: number;
+}
+
+export interface SmartDuoPrompt {
+  pen_id: number;
+  pen_name: string;
+  ink_id: number;
+  ink_name: string;
+  rationale: string;
+}
+
+export interface PairingCandidatesResponse {
+  candidate_pens_count: number;
+  candidate_inks_count: number;
+  pens: CandidatePen[];
+  inks: CandidateInk[];
+  active_palette: ActivePaletteResponse;
+  neglected_duo?: SmartDuoPrompt | null;
+  brand_new_duo?: SmartDuoPrompt | null;
+}
+
+export interface MatchAnalysis {
+  score: number;
+  badges: string[];
+  explanation: string;
+}
+
+export interface PairingHistory {
+  times_paired: number;
+  first_paired_date: string | null;
+  last_paired_date: string | null;
+  days_since_paired: number | null;
+  is_currently_paired: boolean;
+  is_brand_new_pairing: boolean;
+  past_sessions: SessionOut[];
+}
+
+export interface PairingComparisonResponse {
+  pen: CandidatePen & {
+    custom_notes: string;
+    days_since_cleaned: number | null;
+  };
+  ink: CandidateInk & {
+    custom_notes: string;
+    days_since_used: number | null;
+  };
+  match_analysis: MatchAnalysis;
+  pairing_history: PairingHistory;
+  samples_together: WritingSampleOut[];
+  samples_pen: WritingSampleOut[];
+  samples_ink: WritingSampleOut[];
+}
+
+export interface SommelierResponse {
+  source: 'gemini_ai' | 'heuristic_sommelier';
+  headline: string;
+  sommelier_notes: string;
+  palette_role: string;
+  recommended_paper: string;
+  ideal_use_case: string;
+  model?: string;
+}
+
 

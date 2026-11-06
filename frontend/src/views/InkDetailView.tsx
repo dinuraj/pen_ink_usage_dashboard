@@ -11,6 +11,7 @@ import {
   GitMerge,
   FileScan,
   X,
+  Sparkles,
 } from 'lucide-react';
 import { api } from '../api';
 import { useAuth } from '../AuthContext';
@@ -33,6 +34,7 @@ interface Props {
   onOpenInk: (inkId: number) => void;
   onOpenScanPage: (batchId: number, pageNumber: number, sampleId: number) => void;
   onGlobalRefresh: () => void;
+  onOpenPairing?: (inkId: number) => void;
 }
 
 const LEVELS: Array<{ key: string; label: string }> = [
@@ -75,6 +77,7 @@ export const InkDetailView: React.FC<Props> = ({
   onOpenInk,
   onOpenScanPage,
   onGlobalRefresh,
+  onOpenPairing,
 }) => {
   const { isAdmin } = useAuth();
   const [detail, setDetail] = useState<InkDetailResponse | null>(null);
@@ -510,6 +513,18 @@ export const InkDetailView: React.FC<Props> = ({
                     <ExternalLink className="w-3 h-3" />
                   </a>
                 )}
+
+                <button
+                  onClick={() => {
+                    if (onOpenPairing) onOpenPairing(ink.id);
+                    else window.location.hash = `#/pairing?ink=${ink.id}`;
+                  }}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-indigo-200 dark:border-indigo-800/60 bg-indigo-50/50 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 text-xs font-medium transition"
+                  title="Find the ideal pen to pair with this ink in Pairing Studio"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+                  Find Pen in Studio
+                </button>
 
                 {isAdmin && (
                   <button

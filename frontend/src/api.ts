@@ -1,4 +1,5 @@
 import type {
+  ActivePaletteResponse,
   AppSettingsStatus,
   AuthStatus,
   BackupRecord,
@@ -7,10 +8,13 @@ import type {
   InkDetailResponse,
   InkOut,
   NotebookOut,
+  PairingCandidatesResponse,
+  PairingComparisonResponse,
   PenDetailResponse,
   PenOut,
   ScanBatchOut,
   SessionOut,
+  SommelierResponse,
   SyncResult,
   SyncStatus,
   WritingSampleOut,
@@ -331,4 +335,31 @@ export const api = {
     getDownloadUrl: (filename: string) => `/api/sync/backups/${encodeURIComponent(filename)}/download`,
     exportSqliteUrl: '/api/sync/export/sqlite',
   },
+
+  // Pairing Studio
+  pairing: {
+    getActivePalette: () => requestJson<ActivePaletteResponse>('/api/pairing/active-palette'),
+    getCandidates: (cleanPensOnly = true, excludeEmptyInks = true) =>
+      requestJson<PairingCandidatesResponse>(
+        `/api/pairing/candidates?clean_pens_only=${cleanPensOnly}&exclude_empty_inks=${excludeEmptyInks}`,
+      ),
+    compare: (penId: number, inkId: number) =>
+      requestJson<PairingComparisonResponse>(`/api/pairing/compare?pen_id=${penId}&ink_id=${inkId}`),
+    consultSommelier: (penId: number, inkId: number) =>
+      requestJson<SommelierResponse>('/api/pairing/sommelier', {
+        method: 'POST',
+        body: JSON.stringify({ pen_id: penId, ink_id: inkId }),
+      }),
+  },
+
+  rateWritingSample: (sampleId: number, rating: number) =>
+    requestJson<WritingSampleOut>(`/api/samples/${sampleId}/rating`, {
+      method: 'PATCH',
+      body: JSON.stringify({ rating }),
+    }),
+
+  rateUsageSession: (sessionId: number, rating: number) =>
+    requestJson<SessionOut>(`/api/sessions/${sessionId}/rating?rating=${rating}`, {
+      method: 'PATCH',
+    }),
 };

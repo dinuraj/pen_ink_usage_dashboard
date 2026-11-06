@@ -13,6 +13,7 @@ import {
   BookOpen,
   Lock,
   Unlock,
+  Sparkles,
 } from 'lucide-react';
 import { api } from './api';
 import { useAuth } from './AuthContext';
@@ -33,6 +34,7 @@ import { NotebooksView } from './views/NotebooksView';
 import { ScanStudioView } from './views/ScanStudioView';
 import { SamplesView } from './views/SamplesView';
 import { SettingsView } from './views/SettingsView';
+import { PairingStudioView } from './views/PairingStudioView';
 import { QuickInkUpModal } from './components/ActionModals';
 import { getPenCabinetState, getInkLibraryState } from './utils/navigationState';
 
@@ -40,6 +42,7 @@ type RouteState =
   | { tab: 'dashboard' }
   | { tab: 'pens'; penId?: number }
   | { tab: 'inks'; inkId?: number }
+  | { tab: 'pairing'; penId?: number; inkId?: number }
   | { tab: 'notebooks' }
   | { tab: 'scans'; batchId?: number; pageNumber?: number; sampleId?: number }
   | { tab: 'samples' }
@@ -54,6 +57,14 @@ function parseHash(): RouteState {
   }
   if (seg === 'inks') {
     return idStr ? { tab: 'inks', inkId: Number(idStr) } : { tab: 'inks' };
+  }
+  if (seg === 'pairing') {
+    const qs = new URLSearchParams(queryPart || '');
+    return {
+      tab: 'pairing',
+      penId: qs.get('pen') ? Number(qs.get('pen')) : undefined,
+      inkId: qs.get('ink') ? Number(qs.get('ink')) : undefined,
+    };
   }
   if (seg === 'scans') {
     const qs = new URLSearchParams(queryPart || '');
@@ -83,7 +94,13 @@ export const App: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [showQuickInkUp, setShowQuickInkUp] = useState<boolean>(false);
+  const [quickInkUpInit, setQuickInkUpInit] = useState<{ penId?: number; inkId?: number } | null>(null);
   const [showLoginModal, setShowLoginModal] = useState<boolean>(false);
+
+  const openQuickInkUp = (penId?: number, inkId?: number) => {
+    setQuickInkUpInit(penId || inkId ? { penId, inkId } : null);
+    setShowQuickInkUp(true);
+  };
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', dark);
@@ -100,6 +117,13 @@ export const App: React.FC = () => {
     let hash = `#/${next.tab}`;
     if (next.tab === 'pens' && next.penId) hash = `#/pens/${next.penId}`;
     if (next.tab === 'inks' && next.inkId) hash = `#/inks/${next.inkId}`;
+    if (next.tab === 'pairing') {
+      const qs = new URLSearchParams();
+      if (next.penId) qs.set('pen', String(next.penId));
+      if (next.inkId) qs.set('ink', String(next.inkId));
+      const qStr = qs.toString();
+      hash = qStr ? `#/pairing?${qStr}` : `#/pairing`;
+    }
     if (next.tab === 'scans' && (next.batchId || next.pageNumber || next.sampleId)) {
       const qs = new URLSearchParams();
       if (next.batchId) qs.set('batch', String(next.batchId));
@@ -189,6 +213,7 @@ export const App: React.FC = () => {
     },
     { key: 'pens', label: 'Pen Cabinet', icon: PenTool, badge: pens.length || undefined },
     { key: 'inks', label: 'Ink Library', icon: Droplet, badge: inks.length || undefined },
+    { key: 'pairing', label: 'Pairing Studio', icon: Sparkles },
     { key: 'notebooks', label: 'Notebooks', icon: BookOpen, badge: notebooks.length || undefined },
     { key: 'scans', label: 'PDF Scan Studio', icon: FileScan },
     {
@@ -257,7 +282,7 @@ export const App: React.FC = () => {
           <div className="p-3">
             {isAdmin ? (
               <button
-                onClick={() => setShowQuickInkUp(true)}
+                onClick={() => openQuickInkUp()}
                 className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium shadow-2xs mb-3 transition"
               >
                 <Plus className="w-3.5 h-3.5" />
@@ -354,7 +379,8 @@ export const App: React.FC = () => {
                 onOpenPen={(id) => navigate({ tab: 'pens', penId: id })}
                 onOpenInk={(id) => navigate({ tab: 'inks', inkId: id })}
                 onOpenScanStudio={() => navigate({ tab: 'scans' })}
-                onOpenQuickInkUp={() => setShowQuickInkUp(true)}
+                onOpenQuickInkUp={() => openQuickInkUp()}
+                onOpenPairingStudio={() => navigate({ tab: 'pairing' })}
               />
             )}
 
@@ -380,6 +406,7 @@ export const App: React.FC = () => {
                 onOpenPen={(id) => navigate({ tab: 'pens', penId: id })}
                 onOpenScanPage={openScanPage}
                 onGlobalRefresh={refreshAll}
+                onOpenPairing={(penId) => navigate({ tab: 'pairing', penId })}
               />
             )}
 
@@ -405,6 +432,17 @@ export const App: React.FC = () => {
                 onOpenInk={(id) => navigate({ tab: 'inks', inkId: id })}
                 onOpenScanPage={openScanPage}
                 onGlobalRefresh={refreshAll}
+                onOpenPairing={(inkId) => navigate({ tab: 'pairing', inkId })}
+              />
+            )}
+
+            {route.tab === 'pairing' && (
+              <PairingStudioView
+                initialPenId={route.penId}
+                initialInkId={route.inkId}
+                onOpenPen={(id: number) => navigate({ tab: 'pens', penId: id })}
+                onOpenInk={(id: number) => navigate({ tab: 'inks', inkId: id })}
+                onOpenInkUpModal={(penId: number, inkId: number) => openQuickInkUp(penId, inkId)}
               />
             )}
 
@@ -453,7 +491,12 @@ export const App: React.FC = () => {
         <QuickInkUpModal
           pens={pens}
           inks={inks}
-          onClose={() => setShowQuickInkUp(false)}
+          defaultPenId={quickInkUpInit?.penId}
+          defaultInkId={quickInkUpInit?.inkId}
+          onClose={() => {
+            setShowQuickInkUp(false);
+            setQuickInkUpInit(null);
+          }}
           onCompleted={refreshAll}
         />
       )}
